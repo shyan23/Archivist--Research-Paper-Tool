@@ -39,6 +39,11 @@ type MetadataStore struct {
 
 // NewMetadataStore creates or loads a metadata store
 func NewMetadataStore(metadataDir string) (*MetadataStore, error) {
+	// Ensure metadata directory exists
+	if err := os.MkdirAll(metadataDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create metadata directory: %w", err)
+	}
+
 	dbPath := filepath.Join(metadataDir, "hashes.json")
 
 	store := &MetadataStore{
@@ -48,9 +53,22 @@ func NewMetadataStore(metadataDir string) (*MetadataStore, error) {
 	}
 
 	// Load existing metadata if file exists
-	if _, err := os.Stat(dbPath); err == nil {
-		if err := store.load(); err != nil {
-			return nil, fmt.Errorf("failed to load metadata: %w", err)
+	if fileInfo, err := os.Stat(dbPath); err == nil {
+		// Check if file has content
+		if fileInfo.Size() > 0 {
+			if err := store.load(); err != nil {
+				return nil, fmt.Errorf("failed to load metadata: %w", err)
+			}
+		} else {
+			// File exists but is empty, initialize with empty data
+			if err := store.persist(); err != nil {
+				return nil, fmt.Errorf("failed to initialize empty metadata: %w", err)
+			}
+		}
+	} else if os.IsNotExist(err) {
+		// File doesn't exist, create it
+		if err := store.persist(); err != nil {
+			return nil, fmt.Errorf("failed to create metadata file: %w", err)
 		}
 	}
 
@@ -137,7 +155,22 @@ func (ms *MetadataStore) load() error {
 		return err
 	}
 
-	return json.Unmarshal(data, ms)
+	// Check if data is empty
+	if len(data) == 0 {
+		return fmt.Errorf("metadata file is empty")
+	}
+
+	// Unmarshal with validation
+	if err := json.Unmarshal(data, ms); err != nil {
+		return fmt.Errorf("invalid JSON in metadata file: %w", err)
+	}
+
+	// Ensure map is initialized
+	if ms.ProcessedPapers == nil {
+		ms.ProcessedPapers = make(map[string]ProcessingRecord)
+	}
+
+	return nil
 }
 
 // persist saves the metadata to disk

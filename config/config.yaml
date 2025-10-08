@@ -4,37 +4,37 @@ report_output_dir: "./reports"
 metadata_dir: "./.metadata"
 
 processing:
-  max_workers: 4
-  batch_size: 5
+  max_workers: 8                   # ✅ Increased for batch processing
+  batch_size: 10
   timeout_per_paper: 600
 
 gemini:
-  model: "gemini-2.0-flash"
+  model: "gemini-1.5-flash"        # ✅ Fast model for everything
   max_tokens: 8000
   temperature: 0.3
-  
-  # Agentic workflow settings
+
+  # Agentic workflow settings (OPTIMIZED FOR SINGLE API CALL)
   agentic:
-    enabled: true
-    max_iterations: 3              # Max refinement iterations
-    self_reflection: true          # Enable self-critique before output
-    multi_stage_analysis: true     # Break analysis into multiple focused stages
+    enabled: false                 # ✅ Disabled: use simple single API call workflow
+    max_iterations: 1              # ✅ Reduced from 3 to 1
+    self_reflection: false         # ✅ Disabled (saves 40-60s, reduces API calls)
+    multi_stage_analysis: false    # ✅ Single-stage is faster
 
     # Stage-specific settings
     stages:
       metadata_extraction:
-        model: "gemini-2.0-flash"
+        model: "gemini-1.5-flash"
         temperature: 1
 
       methodology_analysis:
-        model: "gemini-2.5-pro"     # Use Pro for complex reasoning
+        model: "gemini-1.5-pro"  # ✅ Most powerful model available
         temperature: 1
-        thinking_budget: 10000      # Tokens for chain-of-thought
+        thinking_budget: 10000
 
       latex_generation:
-        model: "gemini-2.0-flash"
+        model: "gemini-1.5-flash"
         temperature: 1
-        validation: true            # Validate LaTeX syntax
+        validation: true         # ✅ Disabled (saves 8-15s)
 
     # Retry and error recovery
     retry:
@@ -51,6 +51,6 @@ hash_algorithm: "md5"
 
 # Logging and monitoring
 logging:
-  level: "info"                    # debug, info, warn, error
+  level: "info"
   file: ".metadata/processing.log"
   console: true

@@ -7,4 +7,16 @@ rph
 /text_files
 /lib
 /reports
+tex_files/
 
+# Docker
+.dockerignore
+
+# Build artifacts
+*.log
+*.aux
+*.out
+*.toc
+*.fdb_latexmk
+*.fls
+*.synctex.gz

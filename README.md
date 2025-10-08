@@ -4,6 +4,7 @@ A powerful CLI tool that converts AI/ML research papers into comprehensive, stud
 
 ## Features
 
+- 🎨 **Interactive TUI**: Beautiful terminal interface for browsing and processing papers
 - 🤖 **AI-Powered Analysis**: Uses Google Gemini API with agentic workflows for deep paper analysis
 - 📚 **Student-Friendly**: Generates detailed explanations targeted at CS students
 - ⚡ **Parallel Processing**: Process multiple papers concurrently with worker pools
@@ -45,6 +46,29 @@ A powerful CLI tool that converts AI/ML research papers into comprehensive, stud
    ```
 
 ## Usage
+
+### 🎨 Interactive TUI (Recommended)
+
+Launch the beautiful interactive terminal interface:
+```bash
+./rph run
+```
+
+The TUI provides:
+- 📚 Browse all papers in your library
+- ✅ View processed papers with status
+- 📄 Select and process single papers
+- 🚀 Batch process all papers
+- 🎯 Choose between Fast ⚡ and Quality 🎯 modes
+- 🎨 Colorful, intuitive navigation with arrow keys
+
+**Quick Start:**
+1. `./rph run` - Launch TUI
+2. Navigate with `↑/↓` or `j/k`
+3. Press `Enter` to select an option
+4. Press `ESC` to go back, `Q` to quit
+
+See [TUI_GUIDE.md](./TUI_GUIDE.md) for detailed documentation.
 
 ### Check Dependencies
 ```bash
@@ -127,6 +151,8 @@ gemini:
 │   ├── generator/        # LaTeX file generation
 │   ├── parser/           # PDF metadata extraction
 │   ├── storage/          # Metadata persistence
+│   ├── tui/              # Interactive Terminal UI (Bubble Tea)
+│   ├── ui/               # UI utilities & styling
 │   └── worker/           # Worker pool for parallel processing
 ├── pkg/fileutil/         # File utilities (hashing, etc.)
 ├── config/               # Configuration files
@@ -171,6 +197,186 @@ tex_files/Attention_Is_All_You_Need.tex
   ↓ (pdflatex)
 reports/Attention_Is_All_You_Need.pdf  ✅
 ```
+
+## Testing
+
+Archivist includes a comprehensive test suite covering unit tests, integration tests, and end-to-end workflows.
+
+### Quick Start
+
+```bash
+# Run all tests
+make test
+
+# Run unit tests only (fast)
+make test-unit
+
+# Run tests with coverage report
+make test-coverage
+
+# Run quick tests during development
+make test-quick
+```
+
+### Test Commands
+
+#### Using Make
+
+```bash
+make test              # Run all tests
+make test-unit         # Run unit tests only
+make test-integration  # Run integration tests only
+make test-verbose      # Run tests with verbose output
+make test-coverage     # Generate coverage report (HTML)
+make test-quick        # Quick tests for development
+make bench             # Run benchmarks
+```
+
+#### Using test.sh Script
+
+The `test.sh` script provides more control:
+
+```bash
+./test.sh all          # Run all tests
+./test.sh unit         # Unit tests only
+./test.sh integration  # Integration tests only
+./test.sh coverage     # Coverage report with browser preview
+./test.sh bench        # Benchmarks
+./test.sh quick        # Quick development tests
+./test.sh verbose      # Verbose output
+./test.sh specific TestName  # Run specific test
+./test.sh watch        # Watch mode - rerun on changes
+./test.sh clean        # Clean test artifacts
+```
+
+#### Using Go directly
+
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with race detector
+go test -race ./...
+
+# Run specific package tests
+go test ./pkg/fileutil
+
+# Run specific test
+go test -run TestComputeFileHash ./pkg/fileutil
+
+# Verbose output
+go test -v ./...
+
+# With coverage
+go test -cover ./...
+```
+
+### Test Organization
+
+```
+archivist/
+├── pkg/
+│   └── fileutil/
+│       └── hash_test.go           # File hashing & discovery tests
+├── internal/
+│   ├── storage/
+│   │   └── metadata_test.go       # Metadata storage & deduplication
+│   ├── parser/
+│   │   └── pdf_parser_test.go     # PDF parsing tests
+│   ├── generator/
+│   │   └── latex_generator_test.go # LaTeX generation tests
+│   ├── compiler/
+│   │   └── latex_compiler_test.go  # PDF compilation tests
+│   ├── analyzer/
+│   │   └── analyzer_test.go       # LLM analysis tests
+│   ├── worker/
+│   │   └── pool_test.go           # Parallel processing tests
+│   ├── batch_test.go              # Batch processing tests
+│   ├── integration_test.go        # End-to-end integration tests
+│   ├── cli_test.go                # CLI command tests
+│   └── testhelpers/
+│       └── helpers.go             # Shared test utilities
+└── testdata/                      # Test fixtures & sample data
+```
+
+### Test Coverage
+
+View current test coverage:
+
+```bash
+make test-coverage
+# Opens coverage.html in your browser
+```
+
+Coverage reports include:
+- ✅ **Per-package coverage** - See which packages need more tests
+- ✅ **Line-by-line coverage** - Identify untested code paths
+- ✅ **Function coverage** - Track tested vs untested functions
+
+### Running Specific Test Suites
+
+**Unit Tests** (Fast, isolated tests):
+```bash
+make test-unit
+# Tests: fileutil, storage, parser, generator, compiler, analyzer
+```
+
+**Integration Tests** (End-to-end workflows):
+```bash
+make test-integration
+# Tests: Complete paper processing workflows
+```
+
+**Benchmarks** (Performance testing):
+```bash
+make bench
+# Benchmarks: Hash computation, file discovery, parsing, etc.
+```
+
+### Continuous Integration
+
+For CI/CD pipelines:
+
+```bash
+# Run tests with race detector and coverage
+go test -race -timeout 10m -coverprofile=coverage.out ./...
+
+# Check coverage threshold
+go tool cover -func=coverage.out | grep total
+```
+
+### Watch Mode (Development)
+
+Auto-run tests when files change:
+
+```bash
+./test.sh watch
+# Requires: entr (install with: sudo apt install entr)
+```
+
+### Test Configuration
+
+Tests use temporary directories and mock configurations. No manual setup required!
+
+Key test helpers (in `internal/testhelpers`):
+- `TestConfig()` - Creates isolated test configuration
+- `CreateTestPDF()` - Generates test PDF files
+- `CreateTestLaTeX()` - Generates test LaTeX files
+- `ComputeTestFileHash()` - Hash computation for tests
+
+### Troubleshooting Tests
+
+**Tests fail with "API key" errors:**
+- Unit tests use mocks - no API key needed
+- Integration tests may require `GEMINI_API_KEY` environment variable
+
+**Tests timeout:**
+- Increase timeout: `go test -timeout 10m ./...`
+- Use quick tests: `make test-quick`
+
+**Coverage report not opening:**
+- Manually open `coverage.html` in your browser
+- Or run: `xdg-open coverage.html` (Linux) / `open coverage.html` (Mac)
 
 ## Troubleshooting
 
@@ -223,3 +429,6 @@ Built with:
 - [Google Gemini API](https://ai.google.dev/)
 - [Cobra CLI](https://github.com/spf13/cobra)
 - [Viper Config](https://github.com/spf13/viper)
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - TUI framework
+- [Lip Gloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
+- [Bubbles](https://github.com/charmbracelet/bubbles) - TUI components

@@ -5,12 +5,14 @@ import (
 	"archivist/internal/app"
 	"archivist/internal/compiler"
 	"archivist/internal/generator"
-	"archivist/internal/parser"
 	"archivist/internal/storage"
+	"archivist/internal/ui"
 	"archivist/pkg/fileutil"
 	"context"
 	"fmt"
 	"log"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -82,10 +84,22 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 	startTime := time.Now()
 	result := &ProcessingResult{Job: job}
 
+	log.Printf("  ⏱️  Starting processing pipeline for: %s", job.FilePath)
+
+	// Compute hash first for tracking (but don't let failures block processing)
+	fileHash, err := fileutil.ComputeFileHash(job.FilePath)
+	if err != nil {
+		log.Printf("  ⚠️  Warning: Could not compute hash initially: %v", err)
+		fileHash = fmt.Sprintf("temp_%d", time.Now().UnixNano()) // Temporary hash
+	}
+	job.FileHash = fileHash
+
 	// Mark as processing
-	wp.metadata.MarkProcessing(job.FileHash, job.FilePath)
+	wp.metadata.MarkProcessing(fileHash, job.FilePath)
 
 	// Step 1: Create analyzer
+	stepStart := time.Now()
+	log.Printf("  🔧 Step 1/4: Initializing Gemini analyzer...")
 	analyzer, err := analyzer.NewAnalyzer(wp.config)
 	if err != nil {
 		result.Error = fmt.Errorf("failed to create analyzer: %w", err)
@@ -93,18 +107,12 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 		return result
 	}
 	defer analyzer.Close()
+	log.Printf("  ✓ Analyzer initialized (%.2fs)", time.Since(stepStart).Seconds())
 
-	// Step 2: Extract metadata for title
-	pdfParser := parser.NewPDFParser(analyzer.GetClient())
-	metadata, err := pdfParser.ExtractMetadata(ctx, job.FilePath)
-	if err != nil {
-		result.Error = fmt.Errorf("failed to extract metadata: %w", err)
-		wp.metadata.MarkFailed(job.FileHash, result.Error.Error())
-		return result
-	}
-	result.PaperTitle = metadata.Title
-
-	// Step 3: Analyze paper and generate LaTeX
+	// Step 2: Analyze paper and generate LaTeX (single Gemini API call)
+	stepStart = time.Now()
+	log.Printf("  🤖 Step 2/4: Analyzing paper with Gemini (single API call)...")
+	log.Printf("     → Sending PDF to Gemini API for analysis and LaTeX generation...")
 	latexContent, err := analyzer.AnalyzePaper(ctx, job.FilePath)
 	if err != nil {
 		result.Error = fmt.Errorf("analysis failed: %w", err)
@@ -112,17 +120,30 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 		return result
 	}
 
-	// Step 4: Write LaTeX file
+	// Extract title from LaTeX content using string parsing
+	paperTitle := extractTitleFromLatex(latexContent)
+	if paperTitle == "" {
+		paperTitle = "Unknown Paper" // Fallback title
+	}
+	result.PaperTitle = paperTitle
+	log.Printf("  ✓ Analysis complete, title extracted: \"%s\" (%.2fs)", paperTitle, time.Since(stepStart).Seconds())
+
+	// Step 3: Write LaTeX file
+	stepStart = time.Now()
+	log.Printf("  📝 Step 3/4: Generating LaTeX file...")
 	latexGen := generator.NewLatexGenerator(wp.config.TexOutputDir)
-	texPath, err := latexGen.GenerateLatexFile(metadata.Title, latexContent)
+	texPath, err := latexGen.GenerateLatexFile(paperTitle, latexContent)
 	if err != nil {
 		result.Error = fmt.Errorf("LaTeX generation failed: %w", err)
 		wp.metadata.MarkFailed(job.FileHash, result.Error.Error())
 		return result
 	}
 	result.TexFile = texPath
+	log.Printf("  ✓ LaTeX file created: %s (%.2fs)", texPath, time.Since(stepStart).Seconds())
 
-	// Step 5: Compile to PDF
+	// Step 4: Compile to PDF
+	stepStart = time.Now()
+	log.Printf("  🔨 Step 4/4: Compiling LaTeX to PDF (running pdflatex)...")
 	compiler := compiler.NewLatexCompiler(
 		wp.config.Latex.Compiler,
 		wp.config.Latex.Engine == "latexmk",
@@ -137,17 +158,30 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 		return result
 	}
 	result.ReportFile = reportPath
+	log.Printf("  ✓ PDF compiled: %s (%.2fs)", reportPath, time.Since(stepStart).Seconds())
 
-	// Step 6: Mark as completed
+	// Step 6: Compute final hash after successful processing
+	log.Printf("  🔐 Computing final file hash...")
+	finalHash, err := fileutil.ComputeFileHash(job.FilePath)
+	if err != nil {
+		log.Printf("  ⚠️  Warning: Could not compute final hash, using initial: %v", err)
+		finalHash = job.FileHash // Use initial hash if final computation fails
+	} else {
+		job.FileHash = finalHash // Update with final hash
+	}
+
+	// Step 5: Mark as completed
+	log.Printf("  💾 Saving metadata and marking as complete...")
 	wp.metadata.MarkCompleted(storage.ProcessingRecord{
 		FilePath:    job.FilePath,
 		FileHash:    job.FileHash,
-		PaperTitle:  metadata.Title,
+		PaperTitle:  paperTitle,
 		TexFilePath: texPath,
 		ReportPath:  reportPath,
 	})
 
 	result.Duration = time.Since(startTime)
+	log.Printf("  🎉 Processing complete! Total time: %.2fs", result.Duration.Seconds())
 	return result
 }
 
@@ -180,23 +214,25 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 		return fmt.Errorf("failed to initialize metadata store: %w", err)
 	}
 
-	// Filter already processed files
+	// Queue files for processing (hash will be computed after successful processing)
+	log.Println("🔍 Queuing files for processing...")
 	var jobsToProcess []*ProcessingJob
 	for _, file := range files {
-		hash, err := fileutil.ComputeFileHash(file)
-		if err != nil {
-			log.Printf("Error hashing %s: %v", file, err)
-			continue
+		// Skip hash check if force flag is set
+		if !force {
+			// Quick check: try to compute hash to see if already processed
+			// But don't fail if hash computation fails - just process anyway
+			hash, err := fileutil.ComputeFileHash(file)
+			if err == nil && metadataStore.IsProcessed(hash) {
+				log.Printf("  ⏭️  Skipping (already processed): %s", file)
+				continue
+			}
 		}
 
-		if !force && metadataStore.IsProcessed(hash) {
-			log.Printf("Skipping already processed: %s", file)
-			continue
-		}
-
+		log.Printf("  ✅ Queued for processing: %s", file)
 		jobsToProcess = append(jobsToProcess, &ProcessingJob{
 			FilePath: file,
-			FileHash: hash,
+			FileHash: "", // Will be computed after successful processing
 		})
 	}
 
@@ -220,19 +256,62 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 	}()
 
 	// Collect results
-	var successful, failed int
+	var successful, failed, skipped int
+	totalFiles := len(files)
+	processedCount := 0
+	startTime := time.Now()
+
+	// Create progress bar
+	bar := ui.CreateProgressBar(len(jobsToProcess), "Processing papers")
+
 	for result := range pool.Results() {
+		processedCount++
+		bar.Add(1)
+
 		if result.Error != nil {
 			failed++
-			log.Printf("❌ Failed: %s - %v", result.Job.FilePath, result.Error)
+			fmt.Println() // New line after progress bar
+			ui.PrintError(fmt.Sprintf("%s - %v", result.Job.FilePath, result.Error))
 		} else {
 			successful++
-			log.Printf("✅ Success: %s -> %s (%.2fs)", result.PaperTitle, result.ReportFile, result.Duration.Seconds())
+			fmt.Println() // New line after progress bar
+			ui.PrintSuccess(fmt.Sprintf("%s -> %s (%.1fs)", result.PaperTitle, result.ReportFile, result.Duration.Seconds()))
 		}
 	}
 
 	pool.Wait()
 
-	log.Printf("\n📊 Batch complete: %d successful, %d failed", successful, failed)
+	// Calculate skipped files
+	skipped = totalFiles - len(jobsToProcess)
+
+	// Show summary
+	totalTime := time.Since(startTime)
+	ui.PrintSummary(successful, failed, skipped, totalTime)
+
 	return nil
+}
+
+// extractTitleFromLatex extracts the paper title from LaTeX content
+func extractTitleFromLatex(latexContent string) string {
+	// Look for \title{...} command
+	titleRegex := regexp.MustCompile(`\\title\{([^}]+)\}`)
+	matches := titleRegex.FindStringSubmatch(latexContent)
+	if len(matches) > 1 {
+		title := strings.TrimSpace(matches[1])
+		// Remove any LaTeX commands from the title
+		title = strings.ReplaceAll(title, "\\", "")
+		return title
+	}
+
+	// Fallback: look for the first section or subsection title
+	sectionRegex := regexp.MustCompile(`\\(?:section|subsection)\*?\{([^}]+)\}`)
+	matches = sectionRegex.FindStringSubmatch(latexContent)
+	if len(matches) > 1 {
+		title := strings.TrimSpace(matches[1])
+		// Remove any LaTeX commands from the title
+		title = strings.ReplaceAll(title, "\\", "")
+		return title
+	}
+
+	return ""
 }

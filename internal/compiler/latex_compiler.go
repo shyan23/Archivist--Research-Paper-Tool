@@ -2,10 +2,12 @@ package compiler
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type LatexCompiler struct {
@@ -66,6 +68,9 @@ func (lc *LatexCompiler) Compile(texPath string) (string, error) {
 
 // compileWithLatexmk compiles using latexmk
 func (lc *LatexCompiler) compileWithLatexmk(workDir, texFile string) error {
+	log.Printf("     → Running latexmk (automatic multi-pass)...")
+	startTime := time.Now()
+
 	cmd := exec.Command("latexmk",
 		"-pdf",
 		"-interaction=nonstopmode",
@@ -79,13 +84,18 @@ func (lc *LatexCompiler) compileWithLatexmk(workDir, texFile string) error {
 		return fmt.Errorf("latexmk compilation failed: %w\nOutput: %s", err, output)
 	}
 
+	log.Printf("     ✓ latexmk complete (%.2fs)", time.Since(startTime).Seconds())
 	return nil
 }
 
 // compileManual performs manual compilation with multiple passes
 func (lc *LatexCompiler) compileManual(workDir, texFile string) error {
 	// Usually need 2-3 passes for references and TOC
+	log.Printf("     → Running %s (3 passes for references/TOC)...", lc.engine)
 	for i := 0; i < 3; i++ {
+		passStart := time.Now()
+		log.Printf("       Pass %d/3...", i+1)
+
 		cmd := exec.Command(lc.engine,
 			"-interaction=nonstopmode",
 			"-halt-on-error",
@@ -97,6 +107,8 @@ func (lc *LatexCompiler) compileManual(workDir, texFile string) error {
 		if err != nil {
 			return fmt.Errorf("compilation pass %d failed: %w\nOutput: %s", i+1, err, output)
 		}
+
+		log.Printf("       ✓ Pass %d complete (%.2fs)", i+1, time.Since(passStart).Seconds())
 	}
 
 	return nil
@@ -104,11 +116,15 @@ func (lc *LatexCompiler) compileManual(workDir, texFile string) error {
 
 // cleanAuxiliaryFiles removes auxiliary LaTeX files
 func (lc *LatexCompiler) cleanAuxiliaryFiles(workDir, baseName string) {
+	log.Printf("     🧹 Cleaning auxiliary files...")
 	extensions := []string{".aux", ".log", ".out", ".toc", ".fdb_latexmk", ".fls", ".synctex.gz"}
 
+	cleaned := 0
 	for _, ext := range extensions {
 		auxFile := filepath.Join(workDir, baseName+ext)
-		os.Remove(auxFile) // Ignore errors
+		if err := os.Remove(auxFile); err == nil {
+			cleaned++
+		}
 	}
 
 	// Also clean latexmk files
@@ -117,6 +133,8 @@ func (lc *LatexCompiler) cleanAuxiliaryFiles(workDir, baseName string) {
 		cmd.Dir = workDir
 		cmd.Run() // Ignore errors
 	}
+
+	log.Printf("     ✓ Cleaned %d auxiliary files", cleaned)
 }
 
 // CheckDependencies verifies that LaTeX is installed

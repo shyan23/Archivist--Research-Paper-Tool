@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  archivist:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: archivist
+    env_file:
+      - .env
+    volumes:
+      # Mount input PDFs
+      - ./lib:/app/lib:ro
+
+      # Mount output directories
+      - ./tex_files:/app/tex_files
+      - ./reports:/app/reports
+      - ./.metadata:/app/.metadata
+
+      # Mount config (optional, for live changes)
+      - ./config/config.yaml:/app/config/config.yaml:ro
+
+    working_dir: /app
+
+    # Override entrypoint to keep container running
+    # or comment out to use default CMD
+    # stdin_open: true
+    # tty: true
+
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+
+# Alternative service for interactive shell
+  archivist-shell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: archivist-shell
+    env_file:
+      - .env
+    volumes:
+      - ./lib:/app/lib:ro
+      - ./tex_files:/app/tex_files
+      - ./reports:/app/reports
+      - ./.metadata:/app/.metadata
+      - ./config/config.yaml:/app/config/config.yaml:ro
+
+    entrypoint: ["/bin/bash"]
+    stdin_open: true
+    tty: true
+    profiles:
+      - interactive
