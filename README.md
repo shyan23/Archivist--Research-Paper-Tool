@@ -378,6 +378,83 @@ Key test helpers (in `internal/testhelpers`):
 - Manually open `coverage.html` in your browser
 - Or run: `xdg-open coverage.html` (Linux) / `open coverage.html` (Mac)
 
+## CI/CD Pipeline
+
+✅ **Fully automated CI/CD pipeline implemented with GitHub Actions!**
+
+### What's Included
+
+🔄 **Continuous Integration (CI)**
+- ✅ Automated testing on every push and pull request
+- ✅ Multi-version Go testing (1.20, 1.21, 1.22)
+- ✅ Code linting with golangci-lint
+- ✅ Race condition detection
+- ✅ Test coverage reporting to Codecov
+- ✅ Security scanning with Trivy and gosec
+- ✅ Docker image building
+
+📦 **Continuous Deployment (CD)**
+- ✅ Automatic releases on version tags
+- ✅ Multi-platform binary builds (Linux, macOS, Windows)
+- ✅ Multi-architecture support (amd64, arm64)
+- ✅ Docker images published to Docker Hub and GitHub Container Registry
+- ✅ Automated changelog generation
+- ✅ GitHub Releases with artifacts
+
+🤖 **Automation**
+- ✅ Dependabot for automatic dependency updates
+- ✅ Security vulnerability scanning
+- ✅ Code quality checks
+
+### Quick Start
+
+**No manual setup required!** The CI/CD pipeline runs automatically when you:
+
+1. **Push to GitHub** - CI pipeline runs on every commit
+2. **Create a Pull Request** - Automated testing and validation
+3. **Push a version tag** - Full release pipeline with binaries and Docker images
+
+```bash
+# Create and push a release
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+```
+
+### GitHub Secrets Setup
+
+For full functionality, configure these secrets in your repository (`Settings` → `Secrets and variables` → `Actions`):
+
+| Secret | Purpose | Required |
+|--------|---------|----------|
+| `GEMINI_API_KEY` | Run integration tests | Optional |
+| `CODECOV_TOKEN` | Upload coverage reports | Optional |
+| `DOCKER_USERNAME` | Publish to Docker Hub | Optional |
+| `DOCKER_PASSWORD` | Docker Hub authentication | Optional |
+
+**Note:** The pipeline works without secrets, but some features will be skipped.
+
+### Viewing CI/CD Status
+
+Add these badges to show pipeline status:
+
+```markdown
+![CI](https://github.com/YOUR_USERNAME/archivist/workflows/CI/badge.svg)
+![Release](https://github.com/YOUR_USERNAME/archivist/workflows/Release/badge.svg)
+```
+
+### Documentation
+
+- 📖 **[CI/CD Setup Guide](.github/SETUP_GUIDE.md)** - Detailed configuration instructions
+- 📊 **[Test Coverage Report](tests/TEST_COVERAGE.md)** - Test sufficiency assessment
+
+### Workflow Files
+
+- `.github/workflows/ci.yml` - Main CI pipeline
+- `.github/workflows/release.yml` - Release automation
+- `.github/dependabot.yml` - Dependency updates
+- `.golangci.yml` - Linting configuration
+- `.goreleaser.yml` - Release configuration
+
 ## Troubleshooting
 
 **LaTeX compilation fails:**
@@ -392,6 +469,11 @@ Key test helpers (in `internal/testhelpers`):
 **Out of memory:**
 - Reduce `processing.max_workers` in config
 - Process papers in smaller batches
+
+**CI/CD Pipeline Issues:**
+- See [CI/CD Setup Guide](.github/SETUP_GUIDE.md) for troubleshooting
+- Check Actions tab in GitHub for detailed logs
+- Verify secrets are configured correctly
 
 ## Advanced Features
 

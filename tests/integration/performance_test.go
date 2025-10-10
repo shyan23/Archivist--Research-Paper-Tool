@@ -1,4 +1,4 @@
-package internal
+package integration_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"archivist/internal/analyzer"
 	"archivist/internal/generator"
 	"archivist/internal/storage"
-	"archivist/internal/testhelpers"
+	"archivist/tests/helpers/testhelpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

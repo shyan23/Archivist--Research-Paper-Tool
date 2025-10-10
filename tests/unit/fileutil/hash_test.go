@@ -1,10 +1,11 @@
-package fileutil
+package fileutil_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
+	"archivist/pkg/fileutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,10 +21,10 @@ func TestComputeFileHash_Consistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// Compute hash twice
-	hash1, err := ComputeFileHash(testFile)
+	hash1, err := fileutil.ComputeFileHash(testFile)
 	require.NoError(t, err)
 
-	hash2, err := ComputeFileHash(testFile)
+	hash2, err := fileutil.ComputeFileHash(testFile)
 	require.NoError(t, err)
 
 	// Should be identical
@@ -43,10 +44,10 @@ func TestComputeFileHash_Uniqueness(t *testing.T) {
 	err = os.WriteFile(file2, []byte("Content B"), 0644)
 	require.NoError(t, err)
 
-	hash1, err := ComputeFileHash(file1)
+	hash1, err := fileutil.ComputeFileHash(file1)
 	require.NoError(t, err)
 
-	hash2, err := ComputeFileHash(file2)
+	hash2, err := fileutil.ComputeFileHash(file2)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, hash1, hash2, "Different files should have different hashes")
@@ -64,7 +65,7 @@ func TestGetPDFFiles_Discovery(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	files, err := GetPDFFiles(tmpDir)
+	files, err := fileutil.GetPDFFiles(tmpDir)
 	require.NoError(t, err)
 
 	assert.Len(t, files, 3, "Should discover all 3 PDF files")
@@ -88,7 +89,7 @@ func TestGetPDFFiles_IgnoreNonPDF(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	pdfFiles, err := GetPDFFiles(tmpDir)
+	pdfFiles, err := fileutil.GetPDFFiles(tmpDir)
 	require.NoError(t, err)
 
 	assert.Len(t, pdfFiles, 1, "Should only find 1 PDF file")
@@ -99,7 +100,7 @@ func TestGetPDFFiles_IgnoreNonPDF(t *testing.T) {
 func TestGetPDFFiles_EmptyDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	files, err := GetPDFFiles(tmpDir)
+	files, err := fileutil.GetPDFFiles(tmpDir)
 	require.NoError(t, err)
 
 	assert.Len(t, files, 0, "Should return empty list for empty directory")
@@ -141,7 +142,7 @@ func TestSanitizeFilename_SpecialCharacters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := SanitizeFilename(tt.input)
+			result := fileutil.SanitizeFilename(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -152,7 +153,7 @@ func TestSanitizeFilename_LongTitle(t *testing.T) {
 	// Create a very long title (>255 characters)
 	longTitle := "This is an extremely long paper title that goes on and on and on without stopping because some researchers like to put their entire abstract in the title which is really not a good practice but we need to handle it anyway so here we go with more and more text until we exceed two hundred and fifty five characters"
 
-	result := SanitizeFilename(longTitle)
+	result := fileutil.SanitizeFilename(longTitle)
 
 	// Should be truncated to reasonable length
 	assert.LessOrEqual(t, len(result), 200, "Filename should be truncated")
@@ -161,13 +162,13 @@ func TestSanitizeFilename_LongTitle(t *testing.T) {
 
 // TC-9.1.1: Handle non-existent file path
 func TestComputeFileHash_NonExistent(t *testing.T) {
-	_, err := ComputeFileHash("/nonexistent/file.pdf")
+	_, err := fileutil.ComputeFileHash("/nonexistent/file.pdf")
 	assert.Error(t, err, "Should return error for non-existent file")
 }
 
 // Test GetPDFFiles with non-existent directory
 func TestGetPDFFiles_NonExistentDirectory(t *testing.T) {
-	_, err := GetPDFFiles("/nonexistent/directory")
+	_, err := fileutil.GetPDFFiles("/nonexistent/directory")
 	assert.Error(t, err, "Should return error for non-existent directory")
 }
 
@@ -183,6 +184,6 @@ func BenchmarkComputeFileHash(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ComputeFileHash(testFile)
+		_, _ = fileutil.ComputeFileHash(testFile)
 	}
 }

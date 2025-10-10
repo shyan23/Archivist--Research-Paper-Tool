@@ -8,6 +8,7 @@ plans
 /reports
 tex_files/
 
+rph
 # Docker
 .dockerignore
 
@@ -19,3 +20,9 @@ tex_files/
 *.fdb_latexmk
 *.fls
 *.synctex.gz
+
+# Test artifacts
+tests/testdata/sample_pdfs/*.pdf
+tests/testdata/expected_outputs/*
+!tests/testdata/sample_pdfs/.gitkeep
+!tests/testdata/expected_outputs/.gitkeep

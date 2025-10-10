@@ -1,4 +1,4 @@
-package internal
+package integration_test
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 
 	"archivist/internal/app"
 	"archivist/internal/storage"
-	"archivist/internal/testhelpers"
+	"archivist/tests/helpers/testhelpers"
 	"archivist/pkg/fileutil"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
