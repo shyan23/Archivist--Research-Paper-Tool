@@ -42,7 +42,7 @@ A powerful CLI tool that converts AI/ML research papers into comprehensive, stud
 
 4. Build the application:
    ```bash
-   go build -o rph ./cmd/rph
+   go build -o rph ./cmd/main
    ```
 
 ## Usage
