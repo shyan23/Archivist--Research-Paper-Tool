@@ -84,6 +84,44 @@ func (ms *MetadataStore) IsProcessed(hash string) bool {
 	return exists && record.Status == StatusCompleted
 }
 
+// IsProcessedOrProcessing checks if a file is already processed or currently being processed
+func (ms *MetadataStore) IsProcessedOrProcessing(hash string) bool {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+
+	record, exists := ms.ProcessedPapers[hash]
+	if !exists {
+		return false
+	}
+	// Consider it "in use" if it's completed, processing, or even failed (to avoid retries without force flag)
+	return record.Status == StatusCompleted || record.Status == StatusProcessing
+}
+
+// TryMarkProcessing atomically checks if a file can be processed and marks it as processing
+// Returns true if successfully marked for processing, false if already processed/processing
+func (ms *MetadataStore) TryMarkProcessing(hash, filePath string) bool {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	// Check if already exists and is completed or currently processing
+	if record, exists := ms.ProcessedPapers[hash]; exists {
+		if record.Status == StatusCompleted || record.Status == StatusProcessing {
+			return false // Already handled
+		}
+	}
+
+	// Mark as processing
+	ms.ProcessedPapers[hash] = ProcessingRecord{
+		FilePath:    filePath,
+		FileHash:    hash,
+		ProcessedAt: time.Now(),
+		Status:      StatusProcessing,
+	}
+
+	ms.persist()
+	return true
+}
+
 // GetRecord retrieves a processing record by hash
 func (ms *MetadataStore) GetRecord(hash string) (ProcessingRecord, bool) {
 	ms.mu.RLock()

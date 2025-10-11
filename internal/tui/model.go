@@ -9,6 +9,7 @@ import (
 	"archivist/pkg/fileutil"
 	"context"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -31,6 +32,7 @@ const (
 // Model represents the TUI application state
 type Model struct {
 	screen          screen
+	screenHistory   []screen // Navigation stack for back button
 	config          *app.Config
 	metadataStore   *storage.MetadataStore
 	mainMenu        list.Model
@@ -225,6 +227,28 @@ func (m Model) Init() tea.Cmd {
 	return nil
 }
 
+// navigateTo pushes current screen to history and navigates to new screen
+func (m *Model) navigateTo(newScreen screen) {
+	// Only push to history if we're moving to a different screen
+	if m.screen != newScreen {
+		m.screenHistory = append(m.screenHistory, m.screen)
+	}
+	m.screen = newScreen
+}
+
+// navigateBack pops the last screen from history and goes back
+func (m *Model) navigateBack() {
+	if len(m.screenHistory) > 0 {
+		// Pop the last screen from history
+		lastScreen := m.screenHistory[len(m.screenHistory)-1]
+		m.screenHistory = m.screenHistory[:len(m.screenHistory)-1]
+		m.screen = lastScreen
+	} else {
+		// If no history, go to main screen
+		m.screen = screenMain
+	}
+}
+
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -255,13 +279,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.screen == screenMain {
 				return m, tea.Quit
 			}
-			// On other screens, go back
-			m.screen = screenMain
+			// On other screens, go back to main
+			m.navigateBack()
 			return m, nil
 
 		case "esc", "backspace":
 			if m.screen != screenMain {
-				m.screen = screenMain
+				m.navigateBack()
 				return m, nil
 			}
 
@@ -298,13 +322,13 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 
 		switch action {
 		case "view_library":
-			m.screen = screenViewLibrary
+			m.navigateTo(screenViewLibrary)
 			m.loadLibraryPapers()
 		case "view_processed":
-			m.screen = screenViewProcessed
+			m.navigateTo(screenViewProcessed)
 			m.loadProcessedPapers()
 		case "process_single":
-			m.screen = screenSelectPaper
+			m.navigateTo(screenSelectPaper)
 			m.loadPapersForSelection()
 		case "process_all":
 			// Exit TUI and trigger batch processing
@@ -312,12 +336,33 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 			m.processingMsg = "batch"
 			return m, tea.Quit
 		}
+	} else if m.screen == screenViewLibrary {
+		// Handle PDF opening in library view
+		selectedItem := m.libraryList.SelectedItem()
+		if selectedItem != nil {
+			pdfPath := selectedItem.(item).action
+			m.selectedPaper = pdfPath
+			m.processingMsg = "open_pdf"
+			return m, tea.Quit
+		}
+	} else if m.screen == screenViewProcessed {
+		// Handle opening processed paper report
+		selectedItem := m.processedList.SelectedItem()
+		if selectedItem != nil {
+			// Get the report path from metadata
+			hash, _ := fileutil.ComputeFileHash(selectedItem.(item).action)
+			if record, exists := m.metadataStore.GetRecord(hash); exists && record.ReportPath != "" {
+				m.selectedPaper = record.ReportPath
+				m.processingMsg = "open_report"
+				return m, tea.Quit
+			}
+		}
 	} else if m.screen == screenSelectPaper {
 		// Handle paper selection
 		selectedItem := m.singlePaperList.SelectedItem()
 		if selectedItem != nil {
 			m.selectedPaper = selectedItem.(item).description
-			// TODO: Start processing
+			// Start processing
 			return m, tea.Quit
 		}
 	}
@@ -361,29 +406,33 @@ func (m *Model) loadLibraryPapers() {
 	}
 }
 
-// loadProcessedPapers loads processed papers
+// loadProcessedPapers loads processed papers (excludes failed ones)
 func (m *Model) loadProcessedPapers() {
 	records := m.metadataStore.GetAllRecords()
 
-	items := make([]list.Item, len(records))
-	for i, record := range records {
-		statusIcon := "✅"
+	// Filter out failed papers
+	items := make([]list.Item, 0)
+	for _, record := range records {
+		// Skip failed papers - don't show them in TUI
 		if record.Status == storage.StatusFailed {
-			statusIcon = "❌"
-		} else if record.Status == storage.StatusProcessing {
+			continue
+		}
+
+		statusIcon := "✅"
+		if record.Status == storage.StatusProcessing {
 			statusIcon = "⏳"
 		}
 
-		items[i] = item{
+		items = append(items, item{
 			title:       record.PaperTitle,
 			description: fmt.Sprintf("%s %s • Processed: %s", statusIcon, record.Status, record.ProcessedAt.Format("2006-01-02 15:04")),
 			action:      record.FilePath,
-		}
+		})
 	}
 
 	delegate := createStyledDelegate()
 	m.processedList = list.New(items, delegate, 0, 0)
-	m.processedList.Title = fmt.Sprintf("✅ Processed Papers (%d total)", len(records))
+	m.processedList.Title = fmt.Sprintf("✅ Processed Papers (%d total)", len(items))
 	m.processedList.SetShowStatusBar(false)
 	m.processedList.Styles.Title = titleStyle
 	if m.width > 0 && m.height > 0 {
@@ -461,10 +510,18 @@ func (m Model) View() string {
 
 // getHelp returns context-appropriate help text
 func (m Model) getHelp() string {
-	if m.screen == screenMain {
+	switch m.screen {
+	case screenMain:
 		return "↑/↓: Navigate • Enter: Select • Q: Quit"
+	case screenViewLibrary:
+		return "↑/↓: Navigate • Enter: Open PDF • ESC: Back • Q: Quit"
+	case screenViewProcessed:
+		return "↑/↓: Navigate • Enter: Open Report • ESC: Back • Q: Quit"
+	case screenSelectPaper:
+		return "↑/↓: Navigate • Enter: Process Paper • ESC: Back • Q: Quit"
+	default:
+		return "↑/↓: Navigate • Enter: Select • ESC: Back • Q: Quit"
 	}
-	return "↑/↓: Navigate • Enter: Select • ESC: Back • Q: Quit"
 }
 
 // Run starts the TUI application
@@ -489,10 +546,46 @@ func Run(configPath string) error {
 	}
 
 	if finalM.selectedPaper != "" {
-		return handleSinglePaperProcessing(finalM.selectedPaper, finalM.config)
+		switch finalM.processingMsg {
+		case "open_pdf", "open_report":
+			return handleOpenPDF(finalM.selectedPaper)
+		default:
+			return handleSinglePaperProcessing(finalM.selectedPaper, finalM.config)
+		}
 	}
 
 	return nil
+}
+
+// handleOpenPDF opens a PDF file using the system's default PDF viewer
+func handleOpenPDF(pdfPath string) error {
+	fmt.Print("\033[H\033[2J") // Clear screen
+	ui.ShowBanner()
+	ui.PrintInfo(fmt.Sprintf("Opening: %s", pdfPath))
+
+	// Try xdg-open (Linux), open (macOS), or start (Windows)
+	var cmd string
+	var args []string
+
+	// Detect OS and use appropriate command
+	cmd = "xdg-open" // Default for Linux
+	args = []string{pdfPath}
+
+	err := exec.Command(cmd, args...).Start()
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Failed to open PDF: %v", err))
+		ui.PrintInfo("Please open the file manually:")
+		ui.ColorBold.Printf("  %s\n\n", pdfPath)
+		return err
+	}
+
+	ui.PrintSuccess("PDF opened in default viewer")
+	fmt.Println()
+	ui.PrintInfo("Press Enter to return to main menu...")
+	fmt.Scanln()
+
+	// Restart TUI
+	return Run("config/config.yaml")
 }
 
 // handleSinglePaperProcessing processes a single selected paper
@@ -510,8 +603,12 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 	// Select processing mode
 	selectedMode, err := ui.PromptMode()
 	if err != nil {
-		ui.PrintWarning("Mode selection cancelled")
-		return err
+		// User cancelled - return to TUI
+		ui.PrintWarning("Mode selection cancelled, returning to main menu...")
+		fmt.Println()
+		ui.PrintInfo("Press Enter to continue...")
+		fmt.Scanln()
+		return Run("config/config.yaml")
 	}
 
 	// Apply mode configuration
@@ -540,10 +637,53 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 	ctx := context.Background()
 	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
-		return err
+		fmt.Println()
+		ui.PrintWarning("Processing encountered an error")
+		fmt.Println()
+		ui.PrintInfo("What would you like to do?")
+		fmt.Println("  1. Return to main menu")
+		fmt.Println("  2. View processed papers")
+		fmt.Println("  3. Exit")
+		fmt.Print("\nChoice (1/2/3): ")
+
+		var choice string
+		fmt.Scanln(&choice)
+
+		switch choice {
+		case "2":
+			return Run("config/config.yaml")
+		case "3":
+			return nil
+		default:
+			return Run("config/config.yaml")
+		}
 	}
 
-	return nil
+	// Processing successful, offer options
+	fmt.Println()
+	ui.PrintSuccess("Processing complete!")
+	fmt.Println()
+	ui.PrintInfo("What would you like to do?")
+	fmt.Println("  1. Return to main menu")
+	fmt.Println("  2. View processed papers")
+	fmt.Println("  3. Exit")
+	fmt.Print("\nChoice (1/2/3): ")
+
+	var choice string
+	fmt.Scanln(&choice)
+
+	switch choice {
+	case "2":
+		// Restart TUI and navigate to processed papers view
+		// We'll restart normally and let user navigate
+		return Run("config/config.yaml")
+	case "3":
+		// Exit
+		return nil
+	default:
+		// Return to main menu
+		return Run("config/config.yaml")
+	}
 }
 
 // handleBatchProcessing processes all papers in the library
@@ -561,8 +701,12 @@ func handleBatchProcessing(config *app.Config) error {
 	// Select processing mode
 	selectedMode, err := ui.PromptMode()
 	if err != nil {
-		ui.PrintWarning("Mode selection cancelled")
-		return err
+		// User cancelled - return to TUI
+		ui.PrintWarning("Mode selection cancelled, returning to main menu...")
+		fmt.Println()
+		ui.PrintInfo("Press Enter to continue...")
+		fmt.Scanln()
+		return Run("config/config.yaml")
 	}
 
 	// Apply mode configuration
@@ -607,10 +751,52 @@ func handleBatchProcessing(config *app.Config) error {
 	ctx := context.Background()
 	if err := worker.ProcessBatch(ctx, files, config, false); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
-		return err
+		fmt.Println()
+		ui.PrintWarning("Batch processing encountered an error")
+		fmt.Println()
+		ui.PrintInfo("What would you like to do?")
+		fmt.Println("  1. Return to main menu")
+		fmt.Println("  2. View processed papers")
+		fmt.Println("  3. Exit")
+		fmt.Print("\nChoice (1/2/3): ")
+
+		var choice string
+		fmt.Scanln(&choice)
+
+		switch choice {
+		case "2":
+			return Run("config/config.yaml")
+		case "3":
+			return nil
+		default:
+			return Run("config/config.yaml")
+		}
 	}
 
-	return nil
+	// Processing successful, offer options
+	fmt.Println()
+	ui.PrintSuccess("Batch processing complete!")
+	fmt.Println()
+	ui.PrintInfo("What would you like to do?")
+	fmt.Println("  1. Return to main menu")
+	fmt.Println("  2. View processed papers")
+	fmt.Println("  3. Exit")
+	fmt.Print("\nChoice (1/2/3): ")
+
+	var choice string
+	fmt.Scanln(&choice)
+
+	switch choice {
+	case "2":
+		// Restart TUI and navigate to processed papers view
+		return Run("config/config.yaml")
+	case "3":
+		// Exit
+		return nil
+	default:
+		// Return to main menu
+		return Run("config/config.yaml")
+	}
 }
 
 // applyModeConfig applies the selected mode's configuration
@@ -627,7 +813,7 @@ func applyModeConfig(config *app.Config, mode ui.ProcessingMode) {
 
 	// Use appropriate model for methodology analysis
 	if mode == ui.ModeQuality {
-		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "gemini-2.5-pro"
+		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "gemini-1.5-pro"
 	} else {
 		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "gemini-2.0-flash"
 	}

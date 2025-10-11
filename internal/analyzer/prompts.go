@@ -1,20 +1,21 @@
 package analyzer
 
 // AnalysisPrompt is the comprehensive prompt for paper analysis
-const AnalysisPrompt = `You are analyzing an AI/ML research paper for CS students. Your goal is to create a comprehensive, student-friendly analysis that will be converted into a LaTeX document.
+const AnalysisPrompt = `You are analyzing an AI/ML research paper for CS students. Create a comprehensive, student-friendly LaTeX document.
 
-CRITICAL: Output ONLY the LaTeX document content. Do NOT include:
-- Explanatory text before or after the LaTeX
-- Markdown formatting or code blocks
-- Comments about the document quality
-- Any text that is not LaTeX code
+═══════════════════════════════════════════════════════════
+CRITICAL OUTPUT REQUIREMENTS
+═══════════════════════════════════════════════════════════
+1. Output ONLY valid LaTeX code - absolutely nothing else
+2. Start with \documentclass[11pt,a4paper]{article}
+3. End with \end{document}
+4. NO markdown code blocks (no ` + "```" + `latex blocks)
+5. NO explanatory text before or after the LaTeX code
+6. NO comments about the document quality
 
-Start immediately with \documentclass and end with \end{document}. No other text should be included.
-
-Generate a complete LaTeX document following this structure:
-
-\documentclass[11pt,a4paper]{article}
-
+═══════════════════════════════════════════════════════════
+REQUIRED PACKAGES (use these)
+═══════════════════════════════════════════════════════════
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
@@ -26,156 +27,134 @@ Generate a complete LaTeX document following this structure:
 
 \geometry{margin=1in}
 
-% Adding 'breakable' allows the box to break across pages if needed
-\newtcolorbox{keyinsight}{
-    colback=blue!5!white,
-    colframe=blue!75!black,
-    title=Key Insight,
-    breakable
-}
+═══════════════════════════════════════════════════════════
+CUSTOM ENVIRONMENTS (define these after packages)
+═══════════════════════════════════════════════════════════
+Create two tcolorbox environments:
+1. "keyinsight" - for highlighting breakthroughs (blue theme, breakable)
+2. "prerequisite" - for listing prerequisites (green theme, breakable)
 
-\newtcolorbox{prerequisite}{
-    colback=green!5!white,
-    colframe=green!75!black,
-    title=Prerequisites,
-    breakable
-}
+═══════════════════════════════════════════════════════════
+REQUIRED SECTIONS (in this order)
+═══════════════════════════════════════════════════════════
 
-\title{[EXTRACT THE EXACT PAPER TITLE FROM THE PDF]: Student Guide}
+SECTION 1: Executive Summary
+- Write 3-5 sentences as a cohesive paragraph
+- What is the paper about? Why does it matter?
+- NO bullet points in this section
+
+SECTION 2: Problem Statement
+- What specific problem does this paper solve?
+- Why is it important?
+- What are limitations of prior approaches?
+- Write as flowing paragraphs
+
+SECTION 3: Methods Overview
+- List primary techniques/architectures used
+- You can use itemize, enumerate, or description environments
+- Keep it concise - just names and 1-sentence descriptions
+
+SECTION 4: Detailed Methodology
+Split into subsections:
+
+4.1: Prerequisites
+- Use the "prerequisite" environment (colored box)
+- List fundamental concepts students need (be specific)
+- List prior papers/work to understand first
+- Use description lists for clarity
+
+4.2: Architecture and Approach
+- Step-by-step breakdown of the methodology
+- Write in teaching mode - clear explanations
+- Use paragraphs that flow naturally
+- You MAY create tables to describe architectures
+- DO NOT reference external images - describe visually with text/tables instead
+
+4.3: Mathematical Formulations
+- Explain key equations with full context
+- Define all variables
+- Use proper LaTeX math environments (equation, align, etc.)
+- Explain WHY each formula matters
+
+4.4: Implementation Details
+- Key algorithmic steps
+- Design choices and rationale
+- Use itemize or enumerate as appropriate
+
+SECTION 5: The Breakthrough
+- Use the "keyinsight" environment (colored box)
+- Explain the novel contribution
+- What's the "WOW moment"?
+- Write as a cohesive paragraph (text will wrap naturally)
+- NO manual line breaks or forced formatting
+
+SECTION 6: Experimental Setup
+Split into subsections:
+
+6.1: Datasets
+- List benchmark datasets used
+- Brief description of each
+
+6.2: Evaluation Metrics
+- What metrics were used?
+- Why do they matter?
+
+6.3: Baselines
+- What methods were compared against?
+
+SECTION 7: Results and Improvements
+Split into subsections:
+
+7.1: Quantitative Results
+- Present specific numbers
+- Write in complete sentences
+- Example: "The model achieved 95.2% accuracy on CIFAR-10, a 3.1% improvement over the baseline."
+
+7.2: Qualitative Improvements
+- Non-numerical benefits
+- Model efficiency, applicability, etc.
+
+
+
+
+
+
+
+
+═══════════════════════════════════════════════════════════
+FORMATTING GUIDELINES
+═══════════════════════════════════════════════════════════
+✓ Write for CS students, not experts
+✓ Explain technical terms when first introduced
+✓ Use full paragraphs that wrap naturally
+✓ Properly escape LaTeX special characters: % $ & # _ { } ~ ^
+✓ Use \textbf{} for emphasis, not manual bolding
+✓ Use proper LaTeX environments (itemize, enumerate, description)
+✓ Ensure all environments are properly closed
+✓ Add \newpage after \tableofcontents if you want
+✓ You MAY create tables using tabular environment if it helps
+✓ Keep text inside tcolorbox environments as flowing paragraphs
+
+✗ Do NOT use markdown syntax
+✗ Do NOT hardcode line breaks with \\ except in tables/equations
+✗ Do NOT use manual spacing with \vspace unless necessary
+✗ Do NOT include any non-LaTeX content
+✗ DO NOT use \includegraphics or reference external image files (they don't exist)
+✗ DO NOT create \label{} and \ref{} references to figures that don't exist
+✗ If you want to describe an architecture/diagram, use text, tables, or ASCII art in verbatim environment
+
+═══════════════════════════════════════════════════════════
+TITLE FORMAT
+═══════════════════════════════════════════════════════════
+\title{[Extract Paper Title Here]: Student Guide}
 \author{Generated by Research Paper Helper}
 \date{\today}
 
-\begin{document}
-
-\maketitle
-\tableofcontents
-\newpage
-
-\section{Executive Summary}
-[Write 3-4 sentences explaining what this paper is about and why it matters. Write as a single, well-formed paragraph.]
-
-\section{Problem Statement}
-[Explain the specific problem this paper addresses, why it's important, and what the limitations of existing approaches are. Write as a single, well-formed paragraph.]
-
-\section{Methods Overview}
-[List the primary techniques/architectures used. Use a description list for clarity.]
-\begin{description}
-\item[Method 1:] Brief explanation.
-\item[Method 2:] Brief explanation.
-\end{description}
-
-\section{Detailed Methodology}
-
-\subsection{Prerequisites}
-\begin{prerequisite}
-To fully understand this paper, students should have a solid grasp of the following concepts:
-
-% Use a description list for better formatting of term-definition pairs.
-\begin{description}
-\item[Convolutional Neural Networks (CNNs):] Understanding the basic architecture of CNNs, including convolutional layers, pooling layers, and fully connected layers.
-\item[Backpropagation:] The algorithm used to train neural networks by calculating gradients and updating weights.
-\item[Gradient Descent:] An optimization algorithm used to minimize the loss function of a neural network.
-\end{description}
-
-Prior work that should be understood:
-\begin{description}
-\item[AlexNet:] A seminal CNN architecture that demonstrated the power of deep learning for image classification.
-\item[ResNet:] A CNN architecture that uses residual connections to enable training of very deep networks.
-\end{description}
-\end{prerequisite}
-
-\subsection{Architecture and Approach}
-[Break down the methodology step-by-step. Explain it as if you are teaching the concept to a student. Ensure explanations are written in full paragraphs to allow for natural text wrapping.]
-
-\subsection{Mathematical Formulations}
-[Explain key equations with context. For example:]
-
-The depthwise separable convolution can be represented as follows:
-
-Let $X$ be the input tensor of size $H \times W \times C$, where $H$ is the height, $W$ is the width, and $C$ is the number of channels.
-\begin{enumerate}
-    \item \textbf{Depthwise Convolution:} Applies a single filter to each input channel. The output $Y_{DW}$ is of size $H \times W \times C$.
-    \item \textbf{Pointwise Convolution:} Applies a 1x1 convolution to the output of the depthwise convolution. The output $Y_{PW}$ is of size $H \times W \times C'$, where $C'$ is the number of output channels.
-\end{enumerate}
-
-[Explain what the variables represent and why this formulation is efficient.]
-
-\subsection{Implementation Details}
-[List key algorithmic steps and design choices with rationale using an itemize environment.]
-\begin{itemize}
-    \item \textbf{Datasets:} CIFAR-10, CIFAR-100, and Tiny ImageNet.
-    \item \textbf{Training:} Models were trained for 50 epochs using NVIDIA Tesla P100 GPUs.
-\end{itemize}
-
-\section{The Breakthrough}
-\begin{keyinsight}
-[Explain the novel contribution. What is the "WOW moment"? Why is this work significant? CRITICAL: Write this as a single, cohesive paragraph. Do not use lists or manual line breaks. This will ensure the text wraps correctly inside the colored box.]
-\end{keyinsight}
-
-\section{Experimental Setup}
-
-\subsection{Datasets}
-[List and briefly describe the benchmark datasets used in a list.]
-\begin{itemize}
-\item \textbf{CIFAR-10:} A dataset of 60,000 32x32 color images in 10 classes.
-\item \textbf{CIFAR-100:} Contains 100 classes with 600 images per class.
-\end{itemize}
-
-\subsection{Evaluation Metrics}
-[Explain what metrics were used and why they matter.]
-
-\subsection{Baselines}
-[What methods was this compared against?]
-
-\section{Results and Improvements}
-
-\subsection{Quantitative Results}
-[Present specific numbers and improvements in complete sentences for readability. For example: "On the CIFAR-10 dataset, EfficientNetV2-S achieved the highest accuracy (96.53\%), followed by ResNet18 (96.05\%)." This avoids fragmented output.]
-
-\subsection{Qualitative Improvements}
-[Describe the non-numerical benefits, such as model efficiency or broader applicability, in a paragraph.]
-
-\subsection{Limitations}
-[Where does the approach struggle? Be honest about limitations. Use a bulleted list for clarity.]
-\begin{itemize}
-    \item The study focuses on image classification and may not generalize to other tasks.
-    \item Energy consumption of the models was not considered.
-\end{itemize}
-
-\section{Conclusion and Impact}
-
-\subsection{Key Takeaways}
-\begin{itemize}
-\item There is a trade-off between accuracy, inference time, model size, and computational cost.
-\item The optimal choice of architecture depends on the specific application requirements.
-\item Transfer learning can significantly enhance model accuracy.
-\end{itemize}
-
-\subsection{Impact on the Field}
-[How has this work influenced subsequent research? Write as a brief paragraph.]
-
-\subsection{Future Directions}
-[What are the promising next steps? Use a bulleted list.]
-\begin{itemize}
-    \item Exploring next-generation lightweight architectures.
-    \item Testing models in real-world deployment scenarios.
-\end{itemize}
-
-\end{document}
-
-CRITICAL INSTRUCTIONS:
-1. Write for CS students, not experts.
-2. Explain technical terms when first introduced.
-3. Be detailed but clear.
-4. Use examples where helpful.
-5. Maintain technical accuracy while being accessible.
-6. Output ONLY valid LaTeX - no markdown code blocks, no explanations before or after.
-7. Properly escape special LaTeX characters (%, $, &, #, _, {, }, ~, ^, \).
-8. Be specific about prerequisites and use description lists for them.
-9. Write explanations in full, cohesive paragraphs to ensure proper text wrapping, especially inside the 'keyinsight' and 'prerequisite' boxes.
-10. Make sure all LaTeX environments are properly closed.
-
-Generate the complete LaTeX document now. Remember: Output ONLY the LaTeX code starting with \documentclass and ending with \end{document}. No explanations or other text.`
+═══════════════════════════════════════════════════════════
+NOW GENERATE THE DOCUMENT
+═══════════════════════════════════════════════════════════
+Output the complete LaTeX document starting with \documentclass and ending with \end{document}.
+Remember: ONLY LaTeX code, nothing else!`
 
 // MetadataExtractionPrompt is focused on just extracting basic info
 const MetadataExtractionPrompt = `Extract the title from this research paper and provide it in this exact format:

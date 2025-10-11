@@ -68,7 +68,7 @@ func GetModeConfigs() map[ProcessingMode]ModeConfig {
 			SelfReflection:     true,
 			MaxIterations:      2,
 			ValidationEnabled:  true,
-			Model:              "gemini-2.5-pro",
+			Model:              "gemini-1.5-pro",
 			EstimatedTime:      "~90-120 seconds per paper",
 			QualityRating:      "⭐⭐⭐⭐⭐ Excellent",
 			MultiStageAnalysis: true,
@@ -78,7 +78,7 @@ func GetModeConfigs() map[ProcessingMode]ModeConfig {
 
 // ShowBanner displays the application banner
 func ShowBanner() {
-	banner := figure.NewFigure("RPH", "slant", true)
+	banner := figure.NewFigure("Archivist", "slant", true)
 	ColorTitle.Println(banner.String())
 	fmt.Println()
 	ColorInfo.Println("  Research Paper Helper")
@@ -87,16 +87,18 @@ func ShowBanner() {
 }
 
 // PromptMode asks the user to select a processing mode
+// Returns empty string and error if user wants to go back
 func PromptMode() (ProcessingMode, error) {
 	modes := GetModeConfigs()
 
 	items := []string{
 		fmt.Sprintf("%s %s - %s (%s)", modes[ModeFast].Icon, modes[ModeFast].Name, modes[ModeFast].Description, modes[ModeFast].EstimatedTime),
 		fmt.Sprintf("%s %s - %s (%s)", modes[ModeQuality].Icon, modes[ModeQuality].Name, modes[ModeQuality].Description, modes[ModeQuality].EstimatedTime),
+		"⬅️  Go Back",
 	}
 
 	prompt := promptui.Select{
-		Label: "Select Processing Mode",
+		Label: "Select Processing Mode (ESC to go back)",
 		Items: items,
 		Templates: &promptui.SelectTemplates{
 			Label:    "{{ . | cyan | bold }}",
@@ -104,18 +106,26 @@ func PromptMode() (ProcessingMode, error) {
 			Inactive: "  {{ . }}",
 			Selected: "✔ {{ . | green }}",
 		},
-		Size: 2,
+		Size: 3,
 	}
 
 	idx, _, err := prompt.Run()
 	if err != nil {
+		// User pressed ESC or Ctrl+C
 		return "", err
 	}
 
-	if idx == 0 {
+	switch idx {
+	case 0:
 		return ModeFast, nil
+	case 1:
+		return ModeQuality, nil
+	case 2:
+		// User selected "Go Back"
+		return "", fmt.Errorf("user cancelled")
 	}
-	return ModeQuality, nil
+
+	return "", fmt.Errorf("invalid selection")
 }
 
 // ShowModeDetails displays detailed information about the selected mode

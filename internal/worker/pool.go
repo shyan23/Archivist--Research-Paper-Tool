@@ -94,8 +94,13 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 	}
 	job.FileHash = fileHash
 
-	// Mark as processing
-	wp.metadata.MarkProcessing(fileHash, job.FilePath)
+	// Atomically try to mark as processing - this prevents race conditions
+	// where multiple workers try to process the same file
+	if !wp.metadata.TryMarkProcessing(fileHash, job.FilePath) {
+		log.Printf("  ⏭️  Skipping (already being processed or completed): %s", job.FilePath)
+		result.Error = fmt.Errorf("file already processed or being processed")
+		return result
+	}
 
 	// Step 1: Create analyzer
 	stepStart := time.Now()
@@ -261,21 +266,37 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 	processedCount := 0
 	startTime := time.Now()
 
-	// Create progress bar
-	bar := ui.CreateProgressBar(len(jobsToProcess), "Processing papers")
+	// Create progress bar with better description
+	bar := ui.CreateProgressBar(len(jobsToProcess), fmt.Sprintf("📚 Processing %d papers", len(jobsToProcess)))
 
 	for result := range pool.Results() {
 		processedCount++
+
+		// Check if error is due to duplicate (already processed)
+		isDuplicate := result.Error != nil &&
+			(result.Error.Error() == "file already processed or being processed")
+
+		if isDuplicate {
+			// Don't count duplicates as failures - they're skipped
+			skipped++
+			bar.Add(1)
+			continue // Don't print anything for duplicates caught by workers
+		}
+
+		// Update progress bar description with current status
+		bar.Describe(fmt.Sprintf("📚 [%d/%d] Processing papers (✅ %d | ❌ %d)",
+			processedCount, len(jobsToProcess), successful, failed))
 		bar.Add(1)
 
 		if result.Error != nil {
 			failed++
 			fmt.Println() // New line after progress bar
-			ui.PrintError(fmt.Sprintf("%s - %v", result.Job.FilePath, result.Error))
+			ui.PrintError(fmt.Sprintf("[%d/%d] %s - %v", processedCount, len(jobsToProcess), result.Job.FilePath, result.Error))
 		} else {
 			successful++
 			fmt.Println() // New line after progress bar
-			ui.PrintSuccess(fmt.Sprintf("%s -> %s (%.1fs)", result.PaperTitle, result.ReportFile, result.Duration.Seconds()))
+			ui.PrintSuccess(fmt.Sprintf("[%d/%d] %s -> %s (%.1fs)",
+				processedCount, len(jobsToProcess), result.PaperTitle, result.ReportFile, result.Duration.Seconds()))
 		}
 	}
 
