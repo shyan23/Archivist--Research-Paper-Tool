@@ -2,13 +2,11 @@ package integration_test
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
-	"archivist/internal/app"
 	"archivist/internal/storage"
 	"archivist/tests/helpers/testhelpers"
 	"archivist/internal/worker"

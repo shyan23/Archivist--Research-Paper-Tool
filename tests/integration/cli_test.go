@@ -1,7 +1,6 @@
 package integration_test
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,9 +55,6 @@ func TestRunProcessCommand(t *testing.T) {
 	err = os.WriteFile(nonPdfPath, []byte("not a pdf"), 0644)
 	require.NoError(t, err)
 	
-	// Test with non-existent file
-	nonExistentPath := "/path/that/does/not/exist.pdf"
-	
 	// Verify that helper functions work correctly
 	isPDF := filepath.Ext(testPdfPath) == ".pdf"
 	assert.True(t, isPDF, "Test file should have .pdf extension")
@@ -97,7 +93,7 @@ func TestRunListCommand(t *testing.T) {
 		FilePath:    filepath.Join(config.InputDir, "completed_paper.pdf"),
 		FileHash:    "completed-hash",
 		PaperTitle:  "Completed Paper",
-		ProcessedAt: testhelpers.NowFunc(),
+		ProcessedAt: time.Now(),
 		TexFilePath: filepath.Join(config.TexOutputDir, "completed_paper.tex"),
 		ReportPath:  filepath.Join(config.ReportOutputDir, "completed_paper.pdf"),
 		Status:      storage.StatusCompleted,
@@ -176,7 +172,7 @@ func TestRunStatusCommand(t *testing.T) {
 		FilePath:    testFilePath,
 		FileHash:    fileHash,
 		PaperTitle:  "Status Test Paper",
-		ProcessedAt: testhelpers.NowFunc(),
+		ProcessedAt: time.Now(),
 		Status:      storage.StatusCompleted,
 	}
 	err = metadataStore.MarkCompleted(testRecord)
@@ -296,9 +292,7 @@ func TestRunCheckCommand(t *testing.T) {
 	// Test dependency checking
 	// This test will fail if LaTeX tools are not installed, which is expected in many environments
 	// So we just test the logic flow
-	
-	useLatexmk := config.Latex.Engine == "latexmk"
-	
+
 	// For this test, we'll create a mock check that always passes
 	// In a real application, this would call compiler.CheckDependencies()
 	
@@ -360,7 +354,7 @@ func TestCLIFlagValidation(t *testing.T) {
 		FilePath:    "/path/to/test.pdf",
 		FileHash:    alreadyProcessedHash,
 		PaperTitle:  "Test Paper",
-		ProcessedAt: testhelpers.NowFunc(),
+		ProcessedAt: time.Now(),
 		Status:      storage.StatusCompleted,
 	}
 	err = metadataStore.MarkCompleted(record)
@@ -379,8 +373,7 @@ func TestCLIFlagValidation(t *testing.T) {
 // TestFileAndDirectoryArgs tests handling of file vs directory arguments
 func TestFileAndDirectoryArgs(t *testing.T) {
 	tmpDir := t.TempDir()
-	config := testhelpers.TestConfig(t)
-	
+
 	// Create test files and directories
 	inputDir := filepath.Join(tmpDir, "input")
 	err := os.MkdirAll(inputDir, 0755)

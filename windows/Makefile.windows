@@ -1,0 +1,106 @@
+# Windows Makefile for Archivist
+# This Makefile provides Windows-compatible commands using PowerShell
+
+.PHONY: help build run test clean install check
+
+# Default target
+help:
+	@echo "Archivist - Research Paper Helper (Windows)"
+	@echo ""
+	@echo "Build & Run:"
+	@echo "  make build          - Build Windows executable (rph.exe)"
+	@echo "  make install        - Install to Go bin directory"
+	@echo "  make run            - Run interactive TUI"
+	@echo "  make check          - Check dependencies"
+	@echo ""
+	@echo "Processing:"
+	@echo "  make process        - Process all papers in lib\"
+	@echo "  make list           - List processed papers"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test           - Run all tests"
+	@echo "  make test-unit      - Run unit tests only"
+	@echo "  make test-coverage  - Generate coverage report"
+	@echo ""
+	@echo "Utilities:"
+	@echo "  make clean          - Clean build artifacts"
+	@echo "  make deps           - Install dependencies"
+	@echo ""
+	@echo "Note: This Makefile requires GNU Make for Windows"
+	@echo "      Alternative: Use the .bat scripts in windows\ directory"
+
+# Build executable for Windows
+build:
+	@echo "Building Windows executable..."
+	set GOOS=windows& set GOARCH=amd64& go build -o rph.exe ./cmd/main
+	@echo "Build complete: rph.exe"
+
+# Install to GOPATH/bin
+install:
+	@echo "Installing to Go bin directory..."
+	go install ./cmd/main
+	@echo "Installed successfully"
+
+# Run interactive TUI
+run: build
+	.\rph.exe run
+
+# Check dependencies
+check: build
+	.\rph.exe check
+
+# Process all papers
+process: build
+	.\rph.exe process lib\
+
+# List processed papers
+list: build
+	.\rph.exe list
+
+# Install dependencies
+deps:
+	@echo "Installing Go dependencies..."
+	go mod download
+	go mod tidy
+	@echo "Dependencies installed"
+
+# Run all tests
+test:
+	@echo "Running all tests..."
+	go test -race -timeout 5m ./...
+	@echo "Tests complete"
+
+# Run unit tests
+test-unit:
+	@echo "Running unit tests..."
+	go test -race -short -timeout 2m ./pkg/... ./internal/storage ./internal/parser ./internal/generator ./internal/compiler ./internal/analyzer
+	@echo "Unit tests complete"
+
+# Run tests with coverage
+test-coverage:
+	@echo "Running tests with coverage..."
+	go test -race -timeout 5m -coverprofile=coverage.out -covermode=atomic ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report: coverage.html"
+	@go tool cover -func=coverage.out | findstr /C:"total"
+
+# Clean build artifacts
+clean:
+	@echo "Cleaning build artifacts..."
+	-del /F /Q rph.exe 2>nul
+	-del /F /Q coverage.out coverage.html 2>nul
+	-del /F /Q tex_files\*.aux tex_files\*.log tex_files\*.out tex_files\*.toc 2>nul
+	-del /F /Q tex_files\*.fdb_latexmk tex_files\*.fls tex_files\*.synctex.gz 2>nul
+	@echo "Clean complete"
+
+# Format code
+format:
+	@echo "Formatting code..."
+	go fmt ./...
+	@echo "Format complete"
+
+# Run linter (requires golangci-lint)
+lint:
+	@echo "Running linter..."
+	golangci-lint run ./...
+	@echo "Linting complete"

@@ -9,6 +9,10 @@ plans
 tex_files/
 
 rph
+rph.exe
+archivist
+archivist.exe
+
 # Docker
 .dockerignore
 

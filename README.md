@@ -15,6 +15,8 @@ A powerful CLI tool that converts AI/ML research papers into comprehensive, stud
 
 ## Prerequisites
 
+### Linux/macOS
+
 1. **Go 1.20+**
 2. **LaTeX Distribution**:
    ```bash
@@ -22,17 +24,30 @@ A powerful CLI tool that converts AI/ML research papers into comprehensive, stud
    ```
 3. **Google Gemini API Key**: Get one from [Google AI Studio](https://aistudio.google.com/app/apikey)
 
+### Windows
+
+1. **Go 1.20+** - Download from [https://go.dev/dl/](https://go.dev/dl/)
+2. **LaTeX Distribution**:
+   - **MiKTeX** (Recommended): [https://miktex.org/download](https://miktex.org/download)
+   - **TeX Live**: [https://www.tug.org/texlive/](https://www.tug.org/texlive/)
+3. **Google Gemini API Key**: Get one from [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+📘 **Windows users**: See [windows/README_WINDOWS.md](windows/README_WINDOWS.md) for complete installation guide.
+
 ## Installation
+
+### Linux/macOS
 
 1. Clone the repository:
    ```bash
-   cd /home/shyan/Desktop/Code/Archivist
+   git clone https://github.com/yourusername/archivist.git
+   cd archivist
    ```
 
 2. Set up your API key:
    ```bash
-   # .env file already exists with:
-   GEMINI_API_KEY=your_api_key_here
+   # Create .env file:
+   echo "GEMINI_API_KEY=your_api_key_here" > .env
    ```
 
 3. Install Go dependencies:
@@ -42,16 +57,52 @@ A powerful CLI tool that converts AI/ML research papers into comprehensive, stud
 
 4. Build the application:
    ```bash
-   go build -o rph ./cmd/main
+   go build -o archivist ./cmd/main
    ```
+
+### Windows
+
+**Quick Installation (Automated):**
+
+1. Clone the repository:
+   ```powershell
+   git clone https://github.com/yourusername/archivist.git
+   cd archivist
+   ```
+
+2. Run the automated installer:
+   ```powershell
+   .\windows\install.bat
+   ```
+
+**Manual Installation:**
+
+1. Clone and navigate to the repository
+2. Create `.env` file with your API key:
+   ```
+   GEMINI_API_KEY=your_api_key_here
+   ```
+3. Build:
+   ```powershell
+   .\windows\build.bat
+   ```
+
+📘 **For detailed Windows instructions**, see [windows/README_WINDOWS.md](windows/README_WINDOWS.md)
 
 ## Usage
 
 ### 🎨 Interactive TUI (Recommended)
 
 Launch the beautiful interactive terminal interface:
+
+**Linux/macOS:**
 ```bash
-./rph run
+./archivist run
+```
+
+**Windows:**
+```powershell
+.\rph.exe run
 ```
 
 The TUI provides:
@@ -63,7 +114,7 @@ The TUI provides:
 - 🎨 Colorful, intuitive navigation with arrow keys
 
 **Quick Start:**
-1. `./rph run` - Launch TUI
+1. `./archivist run` - Launch TUI
 2. Navigate with `↑/↓` or `j/k`
 3. Press `Enter` to select an option
 4. Press `ESC` to go back, `Q` to quit
@@ -72,49 +123,49 @@ See [TUI_GUIDE.md](./TUI_GUIDE.md) for detailed documentation.
 
 ### Check Dependencies
 ```bash
-./rph check
+./archivist check
 ```
 
 ### Process Papers
 
 Process a single PDF:
 ```bash
-./rph process lib/paper.pdf
+./archivist process lib/paper.pdf
 ```
 
 Process all PDFs in a directory:
 ```bash
-./rph process lib/
+./archivist process lib/
 ```
 
 Process with custom parallel workers:
 ```bash
-./rph process lib/ --parallel 8
+./archivist process lib/ --parallel 8
 ```
 
 Force reprocess already processed papers:
 ```bash
-./rph process lib/ --force
+./archivist process lib/ --force
 ```
 
 ### List Processed Papers
 ```bash
-./rph list
+./archivist list
 ```
 
 Show unprocessed papers:
 ```bash
-./rph list --unprocessed
+./archivist list --unprocessed
 ```
 
 ### Check Processing Status
 ```bash
-./rph status lib/paper.pdf
+./archivist status lib/paper.pdf
 ```
 
 ### Clean Temporary Files
 ```bash
-./rph clean
+./archivist clean
 ```
 
 ## Configuration
@@ -143,7 +194,7 @@ gemini:
 
 ```
 .
-├── cmd/rph/              # CLI entry point
+├── cmd/main/              # CLI entry point
 ├── internal/
 │   ├── analyzer/         # Gemini API client & analysis logic
 │   ├── app/              # Configuration & logging
@@ -155,6 +206,13 @@ gemini:
 │   ├── ui/               # UI utilities & styling
 │   └── worker/           # Worker pool for parallel processing
 ├── pkg/fileutil/         # File utilities (hashing, etc.)
+├── windows/              # Windows-specific files
+│   ├── README_WINDOWS.md      # Complete Windows installation guide
+│   ├── TROUBLESHOOTING.md     # Windows troubleshooting guide
+│   ├── build.bat             # Windows build script
+│   ├── install.bat           # Automated Windows installer
+│   ├── process-all.bat       # Batch processing script
+│   └── Makefile.windows      # Windows Makefile
 ├── config/               # Configuration files
 ├── lib/                  # Input PDFs
 ├── tex_files/            # Generated LaTeX files
@@ -457,8 +515,11 @@ Add these badges to show pipeline status:
 
 ## Troubleshooting
 
+### General Issues
+
 **LaTeX compilation fails:**
-- Ensure `texlive-latex-extra` is installed
+- Linux/macOS: Ensure `texlive-latex-extra` is installed
+- Windows: Ensure MiKTeX or TeX Live is installed and in PATH
 - Check `.metadata/processing.log` for details
 
 **Gemini API errors:**
@@ -474,6 +535,16 @@ Add these badges to show pipeline status:
 - See [CI/CD Setup Guide](.github/SETUP_GUIDE.md) for troubleshooting
 - Check Actions tab in GitHub for detailed logs
 - Verify secrets are configured correctly
+
+### Windows-Specific Issues
+
+📘 **Windows users**: For comprehensive troubleshooting, see [windows/TROUBLESHOOTING.md](windows/TROUBLESHOOTING.md)
+
+Common Windows issues:
+- **"pdflatex is not recognized"**: Add LaTeX to PATH (see troubleshooting guide)
+- **"Access denied" errors**: Run as Administrator or check file permissions
+- **Slow performance**: Add `rph.exe` to antivirus exclusions
+- **Path too long errors**: Place project closer to root (e.g., `C:\archivist`)
 
 ## Advanced Features
 

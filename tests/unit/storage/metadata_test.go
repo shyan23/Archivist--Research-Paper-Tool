@@ -1,6 +1,7 @@
-package storage
+package storage_test
 
 import (
+	"archivist/internal/storage"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,15 +16,15 @@ func TestNewMetadataStore(t *testing.T) {
 	tmpDir := t.TempDir()
 	metadataDir := filepath.Join(tmpDir, "metadata")
 	
-	store, err := NewMetadataStore(metadataDir)
+	store, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 	assert.NotNil(t, store)
 	assert.Equal(t, "1.0", store.Version)
 	assert.Empty(t, store.ProcessedPapers)
-	assert.Equal(t, filepath.Join(metadataDir, "hashes.json"), store.dbPath)
-	
+
 	// Check if the file was created
-	_, err = os.Stat(store.dbPath)
+	dbPath := filepath.Join(metadataDir, "hashes.json")
+	_, err = os.Stat(dbPath)
 	assert.NoError(t, err)
 }
 
@@ -55,7 +56,7 @@ func TestNewMetadataStoreLoadExisting(t *testing.T) {
 	err = os.WriteFile(dbPath, []byte(existingData), 0644)
 	require.NoError(t, err)
 
-	store, err := NewMetadataStore(metadataDir)
+	store, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 	assert.NotNil(t, store)
 	
@@ -63,7 +64,7 @@ func TestNewMetadataStoreLoadExisting(t *testing.T) {
 	record, exists := store.GetRecord("hash1")
 	assert.True(t, exists)
 	assert.Equal(t, "Test Paper 1", record.PaperTitle)
-	assert.Equal(t, StatusCompleted, record.Status)
+	assert.Equal(t, storage.StatusCompleted, record.Status)
 }
 
 // TestIsProcessed tests the IsProcessed method
@@ -71,7 +72,7 @@ func TestIsProcessed(t *testing.T) {
 	tmpDir := t.TempDir()
 	metadataDir := filepath.Join(tmpDir, "metadata")
 	
-	store, err := NewMetadataStore(metadataDir)
+	store, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 
 	hash := "test-hash"
@@ -80,14 +81,14 @@ func TestIsProcessed(t *testing.T) {
 	assert.False(t, store.IsProcessed(hash))
 	
 	// Add a completed record
-	record := ProcessingRecord{
+	record := storage.ProcessingRecord{
 		FilePath:    "/path/to/paper.pdf",
 		FileHash:    hash,
 		PaperTitle:  "Test Paper",
 		ProcessedAt: time.Now(),
 		TexFilePath: "/path/to/output.tex",
 		ReportPath:  "/path/to/output.pdf",
-		Status:      StatusCompleted,
+		Status:      storage.StatusCompleted,
 	}
 	err = store.MarkCompleted(record)
 	require.NoError(t, err)
@@ -96,12 +97,12 @@ func TestIsProcessed(t *testing.T) {
 	assert.True(t, store.IsProcessed(hash))
 	
 	// Add a failed record with the same hash
-	failedRecord := ProcessingRecord{
+	failedRecord := storage.ProcessingRecord{
 		FilePath:    "/path/to/paper.pdf",
 		FileHash:    hash,
 		PaperTitle:  "Test Paper",
 		ProcessedAt: time.Now(),
-		Status:      StatusFailed,
+		Status:      storage.StatusFailed,
 	}
 	err = store.MarkCompleted(failedRecord)
 	require.NoError(t, err)
@@ -115,7 +116,7 @@ func TestGetRecord(t *testing.T) {
 	tmpDir := t.TempDir()
 	metadataDir := filepath.Join(tmpDir, "metadata")
 	
-	store, err := NewMetadataStore(metadataDir)
+	store, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 
 	hash := "test-hash"
@@ -125,14 +126,14 @@ func TestGetRecord(t *testing.T) {
 	assert.False(t, exists)
 	
 	// Add a record
-	record := ProcessingRecord{
+	record := storage.ProcessingRecord{
 		FilePath:    "/path/to/paper.pdf",
 		FileHash:    hash,
 		PaperTitle:  "Test Paper",
 		ProcessedAt: time.Now(),
 		TexFilePath: "/path/to/output.tex",
 		ReportPath:  "/path/to/output.pdf",
-		Status:      StatusCompleted,
+		Status:      storage.StatusCompleted,
 	}
 	err = store.MarkCompleted(record)
 	require.NoError(t, err)
@@ -151,7 +152,7 @@ func TestMarkProcessing(t *testing.T) {
 	tmpDir := t.TempDir()
 	metadataDir := filepath.Join(tmpDir, "metadata")
 	
-	store, err := NewMetadataStore(metadataDir)
+	store, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 
 	hash := "test-hash"
@@ -164,7 +165,7 @@ func TestMarkProcessing(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, filePath, record.FilePath)
 	assert.Equal(t, hash, record.FileHash)
-	assert.Equal(t, StatusProcessing, record.Status)
+	assert.Equal(t, storage.StatusProcessing, record.Status)
 	assert.WithinDuration(t, time.Now(), record.ProcessedAt, 5*time.Second)
 }
 
@@ -173,17 +174,17 @@ func TestMarkCompleted(t *testing.T) {
 	tmpDir := t.TempDir()
 	metadataDir := filepath.Join(tmpDir, "metadata")
 	
-	store, err := NewMetadataStore(metadataDir)
+	store, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 
 	hash := "test-hash"
-	record := ProcessingRecord{
+	record := storage.ProcessingRecord{
 		FilePath:    "/path/to/paper.pdf",
 		FileHash:    hash,
 		PaperTitle:  "Test Paper",
 		TexFilePath: "/path/to/output.tex",
 		ReportPath:  "/path/to/output.pdf",
-		Status:      StatusProcessing, // Start with processing status
+		Status:      storage.StatusProcessing, // Start with processing status
 	}
 	
 	err = store.MarkCompleted(record)
@@ -191,10 +192,10 @@ func TestMarkCompleted(t *testing.T) {
 	
 	retrievedRecord, exists := store.GetRecord(hash)
 	assert.True(t, exists)
-	assert.Equal(t, StatusCompleted, retrievedRecord.Status)
+	assert.Equal(t, storage.StatusCompleted, retrievedRecord.Status)
 	assert.WithinDuration(t, time.Now(), retrievedRecord.ProcessedAt, 5*time.Second)
 	// Note: The status in the saved record should be completed, not the original processing status
-	assert.Equal(t, StatusCompleted, retrievedRecord.Status)
+	assert.Equal(t, storage.StatusCompleted, retrievedRecord.Status)
 }
 
 // TestMarkFailed tests the MarkFailed method
@@ -202,7 +203,7 @@ func TestMarkFailed(t *testing.T) {
 	tmpDir := t.TempDir()
 	metadataDir := filepath.Join(tmpDir, "metadata")
 	
-	store, err := NewMetadataStore(metadataDir)
+	store, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 
 	hash := "test-hash"
@@ -217,7 +218,7 @@ func TestMarkFailed(t *testing.T) {
 	
 	record, exists := store.GetRecord(hash)
 	assert.True(t, exists)
-	assert.Equal(t, StatusFailed, record.Status)
+	assert.Equal(t, storage.StatusFailed, record.Status)
 	assert.Equal(t, errorMsg, record.Error)
 	assert.WithinDuration(t, time.Now(), record.ProcessedAt, 5*time.Second)
 }
@@ -227,11 +228,11 @@ func TestGetAllRecords(t *testing.T) {
 	tmpDir := t.TempDir()
 	metadataDir := filepath.Join(tmpDir, "metadata")
 	
-	store, err := NewMetadataStore(metadataDir)
+	store, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 
 	// Add multiple records
-	records := []ProcessingRecord{
+	records := []storage.ProcessingRecord{
 		{
 			FilePath:    "/path/to/paper1.pdf",
 			FileHash:    "hash1",
@@ -239,7 +240,7 @@ func TestGetAllRecords(t *testing.T) {
 			ProcessedAt: time.Now(),
 			TexFilePath: "/path/to/output1.tex",
 			ReportPath:  "/path/to/output1.pdf",
-			Status:      StatusCompleted,
+			Status:      storage.StatusCompleted,
 		},
 		{
 			FilePath:    "/path/to/paper2.pdf",
@@ -248,14 +249,14 @@ func TestGetAllRecords(t *testing.T) {
 			ProcessedAt: time.Now(),
 			TexFilePath: "/path/to/output2.tex",
 			ReportPath:  "/path/to/output2.pdf",
-			Status:      StatusProcessing,
+			Status:      storage.StatusProcessing,
 		},
 		{
 			FilePath:    "/path/to/paper3.pdf",
 			FileHash:    "hash3",
 			PaperTitle:  "Test Paper 3",
 			ProcessedAt: time.Now(),
-			Status:      StatusFailed,
+			Status:      storage.StatusFailed,
 			Error:       "API error",
 		},
 	}
@@ -277,7 +278,7 @@ func TestGetAllRecords(t *testing.T) {
 	assert.Len(t, allRecords, 3)
 
 	// Check that all records are present (order may vary)
-	recordMap := make(map[string]ProcessingRecord)
+	recordMap := make(map[string]storage.ProcessingRecord)
 	for _, r := range allRecords {
 		recordMap[r.FileHash] = r
 	}
@@ -286,9 +287,9 @@ func TestGetAllRecords(t *testing.T) {
 	assert.Contains(t, recordMap, "hash2")
 	assert.Contains(t, recordMap, "hash3")
 
-	assert.Equal(t, StatusCompleted, recordMap["hash1"].Status)
-	assert.Equal(t, StatusProcessing, recordMap["hash2"].Status)
-	assert.Equal(t, StatusFailed, recordMap["hash3"].Status)
+	assert.Equal(t, storage.StatusCompleted, recordMap["hash1"].Status)
+	assert.Equal(t, storage.StatusProcessing, recordMap["hash2"].Status)
+	assert.Equal(t, storage.StatusFailed, recordMap["hash3"].Status)
 }
 
 // TestPersistence tests that records are persisted to disk
@@ -296,31 +297,31 @@ func TestPersistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	metadataDir := filepath.Join(tmpDir, "metadata")
 	
-	store, err := NewMetadataStore(metadataDir)
+	store, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 
 	// Add a record
-	record := ProcessingRecord{
+	record := storage.ProcessingRecord{
 		FilePath:    "/path/to/paper.pdf",
 		FileHash:    "persistent-hash",
 		PaperTitle:  "Persistent Paper",
 		ProcessedAt: time.Now(),
 		TexFilePath: "/path/to/output.tex",
 		ReportPath:  "/path/to/output.pdf",
-		Status:      StatusCompleted,
+		Status:      storage.StatusCompleted,
 	}
 	err = store.MarkCompleted(record)
 	require.NoError(t, err)
 
 	// Load a new store instance from the same directory
-	newStore, err := NewMetadataStore(metadataDir)
+	newStore, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 	
 	// Check if the record is still there
 	retrievedRecord, exists := newStore.GetRecord("persistent-hash")
 	assert.True(t, exists)
 	assert.Equal(t, "Persistent Paper", retrievedRecord.PaperTitle)
-	assert.Equal(t, StatusCompleted, retrievedRecord.Status)
+	assert.Equal(t, storage.StatusCompleted, retrievedRecord.Status)
 }
 
 // TestConcurrentAccess tests concurrent access to the metadata store
@@ -328,7 +329,7 @@ func TestConcurrentAccess(t *testing.T) {
 	tmpDir := t.TempDir()
 	metadataDir := filepath.Join(tmpDir, "metadata")
 	
-	store, err := NewMetadataStore(metadataDir)
+	store, err := storage.NewMetadataStore(metadataDir)
 	require.NoError(t, err)
 
 	// Simulate concurrent access by calling methods multiple times
@@ -340,14 +341,14 @@ func TestConcurrentAccess(t *testing.T) {
 			err := store.MarkProcessing(hash, filePath)
 			assert.NoError(t, err)
 			
-			record := ProcessingRecord{
+			record := storage.ProcessingRecord{
 				FilePath:    filePath,
 				FileHash:    hash,
 				PaperTitle:  "Test Paper " + string(rune('0' + i)),
 				ProcessedAt: time.Now(),
 				TexFilePath: "/path/to/output" + string(rune('0' + i)) + ".tex",
 				ReportPath:  "/path/to/output" + string(rune('0' + i)) + ".pdf",
-				Status:      StatusCompleted,
+				Status:      storage.StatusCompleted,
 			}
 			err = store.MarkCompleted(record)
 			assert.NoError(t, err)
@@ -378,6 +379,6 @@ func TestLoadInvalidJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	// This should fail
-	_, err = NewMetadataStore(metadataDir)
+	_, err = storage.NewMetadataStore(metadataDir)
 	assert.Error(t, err)
 }
