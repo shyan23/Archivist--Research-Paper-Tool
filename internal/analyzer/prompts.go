@@ -1,176 +1,129 @@
 package analyzer
 
-// AnalysisPrompt is the comprehensive prompt for paper analysis
-const AnalysisPrompt = `You are analyzing an AI/ML research paper for CS students. Create a comprehensive, student-friendly LaTeX document.
+// AnalysisPrompt is the main prompt for analyzing research papers
+const AnalysisPrompt = `You are an expert AI/ML researcher and technical writer tasked with analyzing research papers for CS students.
 
-═══════════════════════════════════════════════════════════
-CRITICAL OUTPUT REQUIREMENTS
-═══════════════════════════════════════════════════════════
-1. Output ONLY valid LaTeX code - absolutely nothing else
-2. Start with \documentclass[11pt,a4paper]{article}
-3. End with \end{document}
-4. NO markdown code blocks (no ` + "```" + `latex blocks)
-5. NO explanatory text before or after the LaTeX code
-6. NO comments about the document quality
+Please analyze this research paper PDF and generate a comprehensive, student-friendly LaTeX document that explains the paper in detail.
 
-═══════════════════════════════════════════════════════════
-REQUIRED PACKAGES (use these)
-═══════════════════════════════════════════════════════════
+The output should be a COMPLETE, READY-TO-COMPILE LaTeX document following this structure:
+
+\documentclass[11pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{geometry}
-\usepackage[breakable]{tcolorbox}
+\usepackage{tcolorbox}
 \usepackage{enumitem}
-
 \geometry{margin=1in}
 
-═══════════════════════════════════════════════════════════
-CUSTOM ENVIRONMENTS (define these after packages)
-═══════════════════════════════════════════════════════════
-Create two tcolorbox environments:
-1. "keyinsight" - for highlighting breakthroughs (blue theme, breakable)
-2. "prerequisite" - for listing prerequisites (green theme, breakable)
+% Custom environments
+\newtcolorbox{keyinsight}{
+    colback=blue!5!white,
+    colframe=blue!75!black,
+    title=Key Insight
+}
 
-═══════════════════════════════════════════════════════════
-REQUIRED SECTIONS (in this order)
-═══════════════════════════════════════════════════════════
+\newtcolorbox{prerequisite}{
+    colback=green!5!white,
+    colframe=green!75!black,
+    title=Prerequisites
+}
 
-SECTION 1: Executive Summary
-- Write 3-5 sentences as a cohesive paragraph
-- What is the paper about? Why does it matter?
-- NO bullet points in this section
-
-SECTION 2: Problem Statement
-- What specific problem does this paper solve?
-- Why is it important?
-- What are limitations of prior approaches?
-- Write as flowing paragraphs
-
-SECTION 3: Methods Overview
-- List primary techniques/architectures used
-- You can use itemize, enumerate, or description environments
-- Keep it concise - just names and 1-sentence descriptions
-
-SECTION 4: Detailed Methodology
-Split into subsections:
-
-4.1: Prerequisites
-- Use the "prerequisite" environment (colored box)
-- List fundamental concepts students need (be specific)
-- List prior papers/work to understand first
-- Use description lists for clarity
-
-4.2: Architecture and Approach
-- Step-by-step breakdown of the methodology
-- Write in teaching mode - clear explanations
-- Use paragraphs that flow naturally
-- You MAY create tables to describe architectures
-- DO NOT reference external images - describe visually with text/tables instead
-
-4.3: Mathematical Formulations
-- Explain key equations with full context
-- Define all variables
-- Use proper LaTeX math environments (equation, align, etc.)
-- Explain WHY each formula matters
-
-4.4: Implementation Details
-- Key algorithmic steps
-- Design choices and rationale
-- Use itemize or enumerate as appropriate
-
-SECTION 5: The Breakthrough
-- Use the "keyinsight" environment (colored box)
-- Explain the novel contribution
-- What's the "WOW moment"?
-- Write as a cohesive paragraph (text will wrap naturally)
-- NO manual line breaks or forced formatting
-
-SECTION 6: Experimental Setup
-Split into subsections:
-
-6.1: Datasets
-- List benchmark datasets used
-- Brief description of each
-
-6.2: Evaluation Metrics
-- What metrics were used?
-- Why do they matter?
-
-6.3: Baselines
-- What methods were compared against?
-
-SECTION 7: Results and Improvements
-Split into subsections:
-
-7.1: Quantitative Results
-- Present specific numbers
-- Write in complete sentences
-- Example: "The model achieved 95.2% accuracy on CIFAR-10, a 3.1% improvement over the baseline."
-
-7.2: Qualitative Improvements
-- Non-numerical benefits
-- Model efficiency, applicability, etc.
-
-
-
-
-
-
-
-
-═══════════════════════════════════════════════════════════
-FORMATTING GUIDELINES
-═══════════════════════════════════════════════════════════
-✓ Write for CS students, not experts
-✓ Explain technical terms when first introduced
-✓ Use full paragraphs that wrap naturally
-✓ Properly escape LaTeX special characters: % $ & # _ { } ~ ^
-✓ Use \textbf{} for emphasis, not manual bolding
-✓ Use proper LaTeX environments (itemize, enumerate, description)
-✓ Ensure all environments are properly closed
-✓ Add \newpage after \tableofcontents if you want
-✓ You MAY create tables using tabular environment if it helps
-✓ Keep text inside tcolorbox environments as flowing paragraphs
-
-✗ Do NOT use markdown syntax
-✗ Do NOT hardcode line breaks with \\ except in tables/equations
-✗ Do NOT use manual spacing with \vspace unless necessary
-✗ Do NOT include any non-LaTeX content
-✗ DO NOT use \includegraphics or reference external image files (they don't exist)
-✗ DO NOT create \label{} and \ref{} references to figures that don't exist
-✗ If you want to describe an architecture/diagram, use text, tables, or ASCII art in verbatim environment
-
-═══════════════════════════════════════════════════════════
-TITLE FORMAT
-═══════════════════════════════════════════════════════════
-\title{[Extract Paper Title Here]: Student Guide}
+\title{[Paper Title]: Technical Report Student Guide}
 \author{Generated by Research Paper Helper}
 \date{\today}
 
-═══════════════════════════════════════════════════════════
-NOW GENERATE THE DOCUMENT
-═══════════════════════════════════════════════════════════
-Output the complete LaTeX document starting with \documentclass and ending with \end{document}.
-Remember: ONLY LaTeX code, nothing else!`
+\begin{document}
 
-// MetadataExtractionPrompt is focused on just extracting basic info
-const MetadataExtractionPrompt = `Extract the title from this research paper and provide it in this exact format:
+\maketitle
+\tableofcontents
+\newpage
 
-TITLE: [exact paper title]
+\section{Executive Summary}
+% 3-4 sentence overview: What is this paper about? Why does it matter?
 
-Be precise and extract the exact title as it appears in the paper.`
+\section{Problem Statement}
+% What specific problem does this paper address?
+% Why is this problem important?
+% What are the limitations of existing approaches?
 
-// ValidationPrompt checks the generated LaTeX
-const ValidationPrompt = `Review this LaTeX code for syntax errors. Check:
-1. All environments are properly opened and closed (\begin{} and \end{} match)
-2. All special characters are properly escaped
-3. All equations are properly formatted
-4. No markdown syntax mixed in
+\section{Methods Overview}
+% List the primary techniques/architectures used
 
-LaTeX code to validate:
+\section{Detailed Methodology}
+
+\subsection{Prerequisites}
+\begin{prerequisite}
+% Specific concepts needed (NOT vague like "linear algebra")
+% Prior work/papers that should be understood first
+\end{prerequisite}
+
+\subsection{Architecture and Approach}
+% Break down the methodology step-by-step
+% Explain mathematical formulations clearly
+% Use analogies where helpful
+% Define all notation explicitly
+
+\subsection{Implementation Details}
+% Key algorithmic steps
+% Design choices and rationale
+
+\section{The Breakthrough}
+\begin{keyinsight}
+% What is the breakthrough/novel contribution?
+% Why is this approach better/different?
+% What makes this work significant?
+\end{keyinsight}
+
+\section{Experimental Setup}
+\subsection{Datasets}
+% Benchmark datasets used
+
+\subsection{Evaluation Metrics}
+% Metrics used for evaluation
+
+\section{Results and Improvements}
+% Quantitative improvements (with specific numbers)
+% Qualitative improvements
+% Where does it excel? Where are limitations?
+
+\section{Conclusion}
+% Key takeaways for students
+% Impact on the field
+% Future directions
+
+\end{document}
+
+IMPORTANT:
+- Write for CS students, not experts
+- Explain technical terms when first introduced
+- Be detailed but clear
+- Use examples where helpful
+- Maintain technical accuracy while being accessible
+- Output ONLY the complete LaTeX document, nothing else
+- Do NOT include markdown code blocks or any other formatting
+- Start directly with \documentclass
+
+LATEX SYNTAX RULES (CRITICAL):
+- ALWAYS use proper LaTeX command syntax with braces: \textit{word} NOT \textitword
+- ALWAYS use proper LaTeX command syntax: \textbf{word} NOT \textbfword
+- Use LaTeX math symbols inside $ or \[ \]: NOT Unicode symbols
+- Escape special characters: \_ for underscore, \% for percent, \$ for dollar
+- Use \times for multiplication, \in for element-of, NOT × or ∈
+- Test every command has proper braces: \command{content}
+- Math mode: Use $x \in R$ NOT $x ∈ R$
+`
+
+// ValidationPrompt is used to validate and fix LaTeX syntax
+const ValidationPrompt = `You are a LaTeX expert. Review this LaTeX document and fix any syntax errors.
+
+If the document is valid, respond with: VALID
+
+If there are errors, output the CORRECTED LaTeX document (complete, not just the fixes).
+
+Document to review:
 %s
 
-If there are errors, output ONLY the corrected LaTeX code. If it's valid, output: VALID`
+Output:`

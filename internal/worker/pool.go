@@ -309,6 +309,11 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 	totalTime := time.Since(startTime)
 	ui.PrintSummary(successful, failed, skipped, totalTime)
 
+	// Return error if any papers failed
+	if failed > 0 {
+		return fmt.Errorf("%d paper(s) failed to process", failed)
+	}
+
 	return nil
 }
 

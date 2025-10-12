@@ -1,10 +1,11 @@
-# Implementation Summary - Archivist
+# Archivist
 
 ## Project Status: ✅ COMPLETE & TESTED
 
 **Built**: October 8, 2025
+**Author** : Nafis Shyan
 **Language**: Go 1.24.5
-**Test Status**: Successfully processed sample PDF end-to-end
+
 
 ---
 

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"archivist/internal/app"
 	"fmt"
 	"time"
 
@@ -145,6 +146,33 @@ func ShowModeDetails(mode ProcessingMode) {
 	fmt.Printf("  🔄 Self-Reflection:   %s\n", formatBool(config.SelfReflection))
 	fmt.Printf("  ✅ Validation:        %s\n", formatBool(config.ValidationEnabled))
 	fmt.Printf("  🔬 Multi-Stage:       %s\n", formatBool(config.MultiStageAnalysis))
+	fmt.Println()
+}
+
+// ShowModeDetailsWithConfig displays detailed information using actual config values
+func ShowModeDetailsWithConfig(mode ProcessingMode, actualConfig *app.Config) {
+	configs := GetModeConfigs()
+	config := configs[mode]
+
+	// Get actual model name from config
+	actualModel := actualConfig.Gemini.Model
+	if mode == ModeQuality && actualConfig.Gemini.Agentic.Enabled {
+		// For quality mode with agentic enabled, show the methodology analysis model
+		actualModel = actualConfig.Gemini.Agentic.Stages.MethodologyAnalysis.Model
+	}
+
+	fmt.Println()
+	ColorBold.Printf("═══════════════════════════════════════════════════════════════\n")
+	fmt.Printf("%s  %s Selected\n", config.Icon, config.Name)
+	ColorBold.Printf("═══════════════════════════════════════════════════════════════\n")
+	fmt.Println()
+
+	fmt.Printf("  📊 Quality:           %s\n", config.QualityRating)
+	fmt.Printf("  ⏱️  Estimated Time:    %s\n", config.EstimatedTime)
+	fmt.Printf("  🤖 AI Model:          %s\n", actualModel)
+	fmt.Printf("  🔄 Self-Reflection:   %s\n", formatBool(actualConfig.Gemini.Agentic.SelfReflection))
+	fmt.Printf("  ✅ Validation:        %s\n", formatBool(actualConfig.Gemini.Agentic.Stages.LatexGeneration.Validation))
+	fmt.Printf("  🔬 Multi-Stage:       %s\n", formatBool(actualConfig.Gemini.Agentic.MultiStageAnalysis))
 	fmt.Println()
 }
 

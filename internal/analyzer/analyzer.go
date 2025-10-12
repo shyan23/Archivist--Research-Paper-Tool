@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -247,8 +248,96 @@ func cleanLatexOutput(content string) string {
 	// Trim whitespace
 	content = strings.TrimSpace(content)
 
+	// Fix common LaTeX typos
+	content = fixCommonLatexErrors(content)
+
 	// Ensure document is properly closed
 	content = ensureLatexComplete(content)
+
+	return content
+}
+
+// fixCommonLatexErrors fixes common LaTeX typos and errors
+func fixCommonLatexErrors(content string) string {
+	// Fix common typos
+	content = strings.ReplaceAll(content, "\\tablecontents", "\\tableofcontents")
+	content = strings.ReplaceAll(content, "\\beginenumerate", "\\begin{enumerate}")
+	content = strings.ReplaceAll(content, "\\beginitemize", "\\begin{itemize}")
+
+	// Fix malformed text commands like \textitword -> \textit{word}
+	content = fixMalformedTextCommands(content)
+
+	// Convert Unicode math symbols to LaTeX commands
+	unicodeToLatex := map[string]string{
+		"∈": "\\in",
+		"∉": "\\notin",
+		"⊂": "\\subset",
+		"⊆": "\\subseteq",
+		"⊃": "\\supset",
+		"⊇": "\\supseteq",
+		"∪": "\\cup",
+		"∩": "\\cap",
+		"∅": "\\emptyset",
+		"∞": "\\infty",
+		"≤": "\\leq",
+		"≥": "\\geq",
+		"≠": "\\neq",
+		"≈": "\\approx",
+		"≡": "\\equiv",
+		"∀": "\\forall",
+		"∃": "\\exists",
+		"→": "\\rightarrow",
+		"←": "\\leftarrow",
+		"⇒": "\\Rightarrow",
+		"⇐": "\\Leftarrow",
+		"⇔": "\\Leftrightarrow",
+		"×": "\\times",
+		"÷": "\\div",
+		"±": "\\pm",
+		"∓": "\\mp",
+		"√": "\\sqrt",
+		"∑": "\\sum",
+		"∏": "\\prod",
+		"∫": "\\int",
+		"∂": "\\partial",
+		"∇": "\\nabla",
+		"α": "\\alpha",
+		"β": "\\beta",
+		"γ": "\\gamma",
+		"δ": "\\delta",
+		"ε": "\\epsilon",
+		"θ": "\\theta",
+		"λ": "\\lambda",
+		"μ": "\\mu",
+		"π": "\\pi",
+		"σ": "\\sigma",
+		"τ": "\\tau",
+		"φ": "\\phi",
+		"ω": "\\omega",
+		"Δ": "\\Delta",
+		"Σ": "\\Sigma",
+		"Ω": "\\Omega",
+	}
+
+	for unicode, latex := range unicodeToLatex {
+		content = strings.ReplaceAll(content, unicode, latex)
+	}
+
+	return content
+}
+
+// fixMalformedTextCommands fixes malformed LaTeX text commands
+// Converts \textitword to \textit{word}, \textbfword to \textbf{word}, etc.
+func fixMalformedTextCommands(content string) string {
+	// List of text formatting commands
+	textCommands := []string{"textit", "textbf", "texttt", "emph", "underline"}
+
+	for _, cmd := range textCommands {
+		// Pattern: \textit followed by alphanumeric characters without braces
+		// Example: \textitcompletely -> \textit{completely}
+		re := regexp.MustCompile(`\\` + cmd + `([a-zA-Z]+)`)
+		content = re.ReplaceAllString(content, `\`+cmd+`{$1}`)
+	}
 
 	return content
 }

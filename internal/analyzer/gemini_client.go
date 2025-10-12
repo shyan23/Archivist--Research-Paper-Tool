@@ -137,3 +137,58 @@ func (gc *GeminiClient) GenerateWithRetry(ctx context.Context, prompt string, ma
 
 	return "", fmt.Errorf("failed after %d attempts: %w", maxAttempts, lastErr)
 }
+
+// ListAvailableModels lists all available Gemini models
+func (gc *GeminiClient) ListAvailableModels(ctx context.Context) ([]string, error) {
+	iter := gc.client.ListModels(ctx)
+	var models []string
+
+	for {
+		model, err := iter.Next()
+		if err != nil {
+			break
+		}
+		models = append(models, model.Name)
+	}
+
+	return models, nil
+}
+
+// FindThinkingModel finds the best available thinking model
+func (gc *GeminiClient) FindThinkingModel(ctx context.Context) (string, error) {
+	models, err := gc.ListAvailableModels(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to list models: %w", err)
+	}
+
+	// Priority list of thinking models to try (in order of preference)
+	preferredModels := []string{
+		"models/gemini-2.0-flash-thinking-exp",
+		"models/gemini-2.0-flash-thinking-exp-1219",
+		"models/gemini-exp-1206",
+		"models/gemini-2.0-flash-exp",
+		"models/gemini-1.5-pro-latest",
+		"models/gemini-1.5-pro-002",
+		"models/gemini-1.5-pro",
+		"models/gemini-2.0-flash-latest",
+		"models/gemini-2.0-flash",
+		"models/gemini-1.5-flash-latest",
+		"models/gemini-1.5-flash",
+	}
+
+	// Find first available preferred model
+	for _, preferred := range preferredModels {
+		for _, available := range models {
+			if available == preferred {
+				return preferred, nil
+			}
+		}
+	}
+
+	// If no preferred model found, return the first available model
+	if len(models) > 0 {
+		return models[0], nil
+	}
+
+	return "", fmt.Errorf("no models available")
+}

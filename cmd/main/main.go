@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archivist/internal/analyzer"
 	"archivist/internal/app"
 	"archivist/internal/compiler"
 	"archivist/internal/storage"
@@ -93,7 +94,15 @@ explanations of methodologies, breakthroughs, and results.`,
 		Run:   runInteractive,
 	}
 
-	rootCmd.AddCommand(processCmd, listCmd, statusCmd, cleanCmd, checkCmd, runCmd)
+	// Models command - List available Gemini models
+	modelsCmd := &cobra.Command{
+		Use:   "models",
+		Short: "List available Gemini AI models",
+		Long:  "Query the Gemini API to list all available models and find the best thinking model",
+		Run:   runModels,
+	}
+
+	rootCmd.AddCommand(processCmd, listCmd, statusCmd, cleanCmd, checkCmd, runCmd, modelsCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -138,8 +147,8 @@ func runProcess(cmd *cobra.Command, args []string) {
 	// Apply mode configuration
 	applyModeConfig(config, selectedMode)
 
-	// Show mode details
-	ui.ShowModeDetails(selectedMode)
+	// Show mode details with actual config values
+	ui.ShowModeDetailsWithConfig(selectedMode, config)
 
 	// Override parallel workers if specified
 	if parallel > 0 {
@@ -243,9 +252,9 @@ func applyModeConfig(config *app.Config, mode ui.ProcessingMode) {
 
 	// Use appropriate model for methodology analysis
 	if mode == ui.ModeQuality {
-		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "gemini-1.5-pro"
+		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "models/gemini-2.0-flash-thinking-exp"
 	} else {
-		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "gemini-1.5-flash"
+		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "models/gemini-2.0-flash-exp"
 	}
 }
 
@@ -465,5 +474,65 @@ func runInteractive(cmd *cobra.Command, args []string) {
 	if err := tui.Run(configPath); err != nil {
 		ui.PrintError(fmt.Sprintf("TUI error: %v", err))
 		os.Exit(1)
+	}
+}
+
+func runModels(cmd *cobra.Command, args []string) {
+	ui.ShowBanner()
+
+	config, err := app.LoadConfig(configPath)
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Failed to load config: %v", err))
+		os.Exit(1)
+	}
+
+	ui.PrintStage("Querying Gemini API", "Finding available models")
+
+	// Create a temporary Gemini client to query models
+	analyzer, err := analyzer.NewAnalyzer(config)
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Failed to create analyzer: %v", err))
+		os.Exit(1)
+	}
+	defer analyzer.Close()
+
+	ctx := context.Background()
+
+	// List all available models
+	ui.PrintInfo("Fetching list of available models...")
+	models, err := analyzer.GetClient().ListAvailableModels(ctx)
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Failed to list models: %v", err))
+		os.Exit(1)
+	}
+
+	ui.ColorBold.Println("\n═══════════════════════════════════════════════════════════════")
+	ui.ColorBold.Printf("           AVAILABLE GEMINI MODELS (%d)                    \n", len(models))
+	ui.ColorBold.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println()
+
+	for i, model := range models {
+		ui.ColorInfo.Printf("  %d. %s\n", i+1, model)
+	}
+
+	// Find best thinking model
+	fmt.Println()
+	ui.PrintInfo("Finding best thinking model...")
+	thinkingModel, err := analyzer.GetClient().FindThinkingModel(ctx)
+	if err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not find thinking model: %v", err))
+	} else {
+		fmt.Println()
+		ui.ColorBold.Println("═══════════════════════════════════════════════════════════════")
+		ui.ColorSuccess.Printf("  RECOMMENDED THINKING MODEL: %s\n", thinkingModel)
+		ui.ColorBold.Println("═══════════════════════════════════════════════════════════════")
+		fmt.Println()
+		ui.PrintInfo("To use this model, update your config/config.yaml:")
+		ui.ColorSubtle.Printf("  gemini:\n")
+		ui.ColorSubtle.Printf("    agentic:\n")
+		ui.ColorSubtle.Printf("      stages:\n")
+		ui.ColorSubtle.Printf("        methodology_analysis:\n")
+		ui.ColorSubtle.Printf("          model: \"%s\"\n", thinkingModel)
+		fmt.Println()
 	}
 }

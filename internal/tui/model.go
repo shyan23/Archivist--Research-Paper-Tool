@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -613,7 +614,7 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 
 	// Apply mode configuration
 	applyModeConfig(config, selectedMode)
-	ui.ShowModeDetails(selectedMode)
+	ui.ShowModeDetailsWithConfig(selectedMode, config)
 
 	// Check dependencies
 	ui.PrintStage("Checking Dependencies", "Verifying LaTeX installation")
@@ -640,48 +641,52 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 		fmt.Println()
 		ui.PrintWarning("Processing encountered an error")
 		fmt.Println()
-		ui.PrintInfo("What would you like to do?")
-		fmt.Println("  1. Return to main menu")
-		fmt.Println("  2. View processed papers")
-		fmt.Println("  3. Exit")
-		fmt.Print("\nChoice (1/2/3): ")
+		ui.PrintInfo("Error logged to .metadata/processing.log")
+		fmt.Println()
+		ui.PrintInfo("Returning to main menu in 5 seconds...")
+		fmt.Println()
+		ui.PrintInfo("(Press Enter to return immediately or Ctrl+C to exit)")
 
-		var choice string
-		fmt.Scanln(&choice)
+		// Create channel to detect user input
+		done := make(chan bool, 1)
+		go func() {
+			fmt.Scanln()
+			done <- true
+		}()
 
-		switch choice {
-		case "2":
+		// Wait for either timeout or user pressing Enter
+		select {
+		case <-done:
+			// User pressed Enter, return immediately
 			return Run("config/config.yaml")
-		case "3":
-			return nil
-		default:
+		case <-time.After(5 * time.Second):
+			// Timeout, auto-return
 			return Run("config/config.yaml")
 		}
 	}
 
-	// Processing successful, offer options
+	// Processing successful, auto-return to main menu
 	fmt.Println()
 	ui.PrintSuccess("Processing complete!")
 	fmt.Println()
-	ui.PrintInfo("What would you like to do?")
-	fmt.Println("  1. Return to main menu")
-	fmt.Println("  2. View processed papers")
-	fmt.Println("  3. Exit")
-	fmt.Print("\nChoice (1/2/3): ")
+	ui.PrintInfo("Returning to main menu in 3 seconds...")
+	fmt.Println()
+	ui.PrintInfo("(Press Enter to return immediately or Ctrl+C to exit)")
 
-	var choice string
-	fmt.Scanln(&choice)
+	// Create channel to detect user input
+	done := make(chan bool, 1)
+	go func() {
+		fmt.Scanln()
+		done <- true
+	}()
 
-	switch choice {
-	case "2":
-		// Restart TUI and navigate to processed papers view
-		// We'll restart normally and let user navigate
+	// Wait for either timeout or user pressing Enter
+	select {
+	case <-done:
+		// User pressed Enter, return immediately
 		return Run("config/config.yaml")
-	case "3":
-		// Exit
-		return nil
-	default:
-		// Return to main menu
+	case <-time.After(3 * time.Second):
+		// Timeout, auto-return
 		return Run("config/config.yaml")
 	}
 }
@@ -711,7 +716,7 @@ func handleBatchProcessing(config *app.Config) error {
 
 	// Apply mode configuration
 	applyModeConfig(config, selectedMode)
-	ui.ShowModeDetails(selectedMode)
+	ui.ShowModeDetailsWithConfig(selectedMode, config)
 
 	ui.PrintInfo(fmt.Sprintf("Using %d parallel workers", config.Processing.MaxWorkers))
 
@@ -754,47 +759,52 @@ func handleBatchProcessing(config *app.Config) error {
 		fmt.Println()
 		ui.PrintWarning("Batch processing encountered an error")
 		fmt.Println()
-		ui.PrintInfo("What would you like to do?")
-		fmt.Println("  1. Return to main menu")
-		fmt.Println("  2. View processed papers")
-		fmt.Println("  3. Exit")
-		fmt.Print("\nChoice (1/2/3): ")
+		ui.PrintInfo("Error logged to .metadata/processing.log")
+		fmt.Println()
+		ui.PrintInfo("Returning to main menu in 5 seconds...")
+		fmt.Println()
+		ui.PrintInfo("(Press Enter to return immediately or Ctrl+C to exit)")
 
-		var choice string
-		fmt.Scanln(&choice)
+		// Create channel to detect user input
+		done := make(chan bool, 1)
+		go func() {
+			fmt.Scanln()
+			done <- true
+		}()
 
-		switch choice {
-		case "2":
+		// Wait for either timeout or user pressing Enter
+		select {
+		case <-done:
+			// User pressed Enter, return immediately
 			return Run("config/config.yaml")
-		case "3":
-			return nil
-		default:
+		case <-time.After(5 * time.Second):
+			// Timeout, auto-return
 			return Run("config/config.yaml")
 		}
 	}
 
-	// Processing successful, offer options
+	// Processing successful, auto-return to main menu
 	fmt.Println()
 	ui.PrintSuccess("Batch processing complete!")
 	fmt.Println()
-	ui.PrintInfo("What would you like to do?")
-	fmt.Println("  1. Return to main menu")
-	fmt.Println("  2. View processed papers")
-	fmt.Println("  3. Exit")
-	fmt.Print("\nChoice (1/2/3): ")
+	ui.PrintInfo("Returning to main menu in 3 seconds...")
+	fmt.Println()
+	ui.PrintInfo("(Press Enter to return immediately or Ctrl+C to exit)")
 
-	var choice string
-	fmt.Scanln(&choice)
+	// Create channel to detect user input
+	done := make(chan bool, 1)
+	go func() {
+		fmt.Scanln()
+		done <- true
+	}()
 
-	switch choice {
-	case "2":
-		// Restart TUI and navigate to processed papers view
+	// Wait for either timeout or user pressing Enter
+	select {
+	case <-done:
+		// User pressed Enter, return immediately
 		return Run("config/config.yaml")
-	case "3":
-		// Exit
-		return nil
-	default:
-		// Return to main menu
+	case <-time.After(3 * time.Second):
+		// Timeout, auto-return
 		return Run("config/config.yaml")
 	}
 }
@@ -813,8 +823,8 @@ func applyModeConfig(config *app.Config, mode ui.ProcessingMode) {
 
 	// Use appropriate model for methodology analysis
 	if mode == ui.ModeQuality {
-		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "gemini-1.5-pro"
+		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "models/gemini-2.0-flash-thinking-exp"
 	} else {
-		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "gemini-2.0-flash"
+		config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "models/gemini-2.0-flash-exp"
 	}
 }
