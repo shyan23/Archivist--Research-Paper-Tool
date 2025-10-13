@@ -49,6 +49,16 @@ latex:
 
 hash_algorithm: "md5"
 
+# Redis-based caching for analysis results
+cache:
+  enabled: true                   # ✅ Enable caching to speed up re-processing
+  type: "redis"                   # "redis" or "memory"
+  ttl: 720                        # Cache TTL in hours (30 days)
+  redis:
+    addr: "localhost:6379"        # Redis server address
+    password: ""                  # Redis password (empty for no auth)
+    db: 0                         # Redis database number
+
 # Logging and monitoring
 logging:
   level: "info"

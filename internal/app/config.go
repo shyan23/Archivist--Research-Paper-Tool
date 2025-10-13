@@ -16,6 +16,7 @@ type Config struct {
 	Processing       ProcessingConfig `mapstructure:"processing"`
 	Gemini           GeminiConfig     `mapstructure:"gemini"`
 	Latex            LatexConfig      `mapstructure:"latex"`
+	Cache            CacheConfig      `mapstructure:"cache"`
 	HashAlgorithm    string           `mapstructure:"hash_algorithm"`
 	Logging          LoggingConfig    `mapstructure:"logging"`
 }
@@ -72,6 +73,19 @@ type LoggingConfig struct {
 	Level   string `mapstructure:"level"`
 	File    string `mapstructure:"file"`
 	Console bool   `mapstructure:"console"`
+}
+
+type CacheConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Type     string `mapstructure:"type"`      // "redis" or "memory"
+	Redis    RedisConfig `mapstructure:"redis"`
+	TTL      int    `mapstructure:"ttl"`       // TTL in hours
+}
+
+type RedisConfig struct {
+	Addr     string `mapstructure:"addr"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
 }
 
 // LoadConfig loads configuration from config.yaml and .env

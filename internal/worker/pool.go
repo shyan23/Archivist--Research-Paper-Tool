@@ -3,6 +3,7 @@ package worker
 import (
 	"archivist/internal/analyzer"
 	"archivist/internal/app"
+	"archivist/internal/cache"
 	"archivist/internal/compiler"
 	"archivist/internal/generator"
 	"archivist/internal/storage"
@@ -39,16 +40,18 @@ type WorkerPool struct {
 	wg         sync.WaitGroup
 	config     *app.Config
 	metadata   *storage.MetadataStore
+	cache      *cache.RedisCache
 }
 
 // NewWorkerPool creates a new worker pool
-func NewWorkerPool(numWorkers int, config *app.Config, metadata *storage.MetadataStore) *WorkerPool {
+func NewWorkerPool(numWorkers int, config *app.Config, metadata *storage.MetadataStore, redisCache *cache.RedisCache) *WorkerPool {
 	return &WorkerPool{
 		numWorkers: numWorkers,
 		jobs:       make(chan *ProcessingJob, numWorkers*2),
 		results:    make(chan *ProcessingResult, numWorkers*2),
 		config:     config,
 		metadata:   metadata,
+		cache:      redisCache,
 	}
 }
 
@@ -114,24 +117,60 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 	defer analyzer.Close()
 	log.Printf("  ✓ Analyzer initialized (%.2fs)", time.Since(stepStart).Seconds())
 
-	// Step 2: Analyze paper and generate LaTeX (single Gemini API call)
+	// Step 2: Check cache first, then analyze if needed
 	stepStart = time.Now()
-	log.Printf("  🤖 Step 2/4: Analyzing paper with Gemini (single API call)...")
-	log.Printf("     → Sending PDF to Gemini API for analysis and LaTeX generation...")
-	latexContent, err := analyzer.AnalyzePaper(ctx, job.FilePath)
-	if err != nil {
-		result.Error = fmt.Errorf("analysis failed: %w", err)
-		wp.metadata.MarkFailed(job.FileHash, result.Error.Error())
-		return result
+	var latexContent string
+	var paperTitle string
+
+	// Try to get from cache if enabled
+	if wp.cache != nil {
+		log.Printf("  🔍 Step 2/4: Checking cache for existing analysis...")
+		cached, err := wp.cache.Get(ctx, fileHash)
+		if err != nil {
+			log.Printf("  ⚠️  Cache error (continuing with analysis): %v", err)
+		} else if cached != nil {
+			// Cache hit! Use cached result
+			latexContent = cached.LatexContent
+			paperTitle = cached.PaperTitle
+			log.Printf("  ✓ Cache hit! Skipping Gemini API call (%.2fs)", time.Since(stepStart).Seconds())
+		}
 	}
 
-	// Extract title from LaTeX content using string parsing
-	paperTitle := extractTitleFromLatex(latexContent)
-	if paperTitle == "" {
-		paperTitle = "Unknown Paper" // Fallback title
+	// If not in cache, analyze with Gemini
+	if latexContent == "" {
+		log.Printf("  🤖 Step 2/4: Analyzing paper with Gemini (cache miss)...")
+		log.Printf("     → Sending PDF to Gemini API for analysis and LaTeX generation...")
+		latexContent, err = analyzer.AnalyzePaper(ctx, job.FilePath)
+		if err != nil {
+			result.Error = fmt.Errorf("analysis failed: %w", err)
+			wp.metadata.MarkFailed(job.FileHash, result.Error.Error())
+			return result
+		}
+		log.Printf("  ✓ Analysis complete (%.2fs)", time.Since(stepStart).Seconds())
+
+		// Extract title for caching
+		paperTitle = extractTitleFromLatex(latexContent)
+		if paperTitle == "" {
+			paperTitle = "Unknown Paper"
+		}
+
+		// Cache the result if caching is enabled
+		if wp.cache != nil {
+			log.Printf("  💾 Caching analysis result...")
+			cacheEntry := &cache.CachedAnalysis{
+				ContentHash:  fileHash,
+				PaperTitle:   paperTitle,
+				LatexContent: latexContent,
+				ModelUsed:    wp.config.Gemini.Model,
+			}
+			if err := wp.cache.Set(ctx, fileHash, cacheEntry); err != nil {
+				log.Printf("  ⚠️  Failed to cache result: %v", err)
+			}
+		}
 	}
+
+	// Set result paper title
 	result.PaperTitle = paperTitle
-	log.Printf("  ✓ Analysis complete, title extracted: \"%s\" (%.2fs)", paperTitle, time.Since(stepStart).Seconds())
 
 	// Step 3: Write LaTeX file
 	stepStart = time.Now()
@@ -219,6 +258,28 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 		return fmt.Errorf("failed to initialize metadata store: %w", err)
 	}
 
+	// Initialize Redis cache if enabled
+	var redisCache *cache.RedisCache
+	if config.Cache.Enabled && config.Cache.Type == "redis" {
+		log.Println("🔌 Initializing Redis cache...")
+		ttl := time.Duration(config.Cache.TTL) * time.Hour
+		redisCache, err = cache.NewRedisCache(
+			config.Cache.Redis.Addr,
+			config.Cache.Redis.Password,
+			config.Cache.Redis.DB,
+			ttl,
+		)
+		if err != nil {
+			log.Printf("⚠️  Warning: Failed to connect to Redis: %v", err)
+			log.Println("   Continuing without cache...")
+			redisCache = nil
+		} else {
+			defer redisCache.Close()
+			stats, _ := redisCache.GetStats(ctx)
+			log.Printf("✓ Cache ready (%d entries, TTL: %d hours)", stats, config.Cache.TTL)
+		}
+	}
+
 	// Queue files for processing (hash will be computed after successful processing)
 	log.Println("🔍 Queuing files for processing...")
 	var jobsToProcess []*ProcessingJob
@@ -249,7 +310,7 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 	log.Printf("Processing %d files with %d workers", len(jobsToProcess), config.Processing.MaxWorkers)
 
 	// Create and start worker pool
-	pool := NewWorkerPool(config.Processing.MaxWorkers, config, metadataStore)
+	pool := NewWorkerPool(config.Processing.MaxWorkers, config, metadataStore, redisCache)
 	pool.Start(ctx)
 
 	// Submit jobs
