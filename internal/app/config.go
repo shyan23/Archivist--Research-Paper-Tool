@@ -12,7 +12,6 @@ type Config struct {
 	InputDir         string           `mapstructure:"input_dir"`
 	TexOutputDir     string           `mapstructure:"tex_output_dir"`
 	ReportOutputDir  string           `mapstructure:"report_output_dir"`
-	MetadataDir      string           `mapstructure:"metadata_dir"`
 	Processing       ProcessingConfig `mapstructure:"processing"`
 	Gemini           GeminiConfig     `mapstructure:"gemini"`
 	Latex            LatexConfig      `mapstructure:"latex"`
@@ -128,7 +127,6 @@ func ensureDirectories(config *Config) error {
 		config.InputDir,
 		config.TexOutputDir,
 		config.ReportOutputDir,
-		config.MetadataDir,
 	}
 
 	for _, dir := range dirs {

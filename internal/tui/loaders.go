@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"archivist/internal/storage"
 	"archivist/pkg/fileutil"
 	"fmt"
 	"path/filepath"
@@ -21,16 +20,9 @@ func (m *Model) loadLibraryPapers() {
 	for i, file := range files {
 		basename := filepath.Base(file)
 
-		// Check if processed
-		hash, _ := fileutil.ComputeFileHash(file)
-		status := "🔴 Unprocessed"
-		if m.metadataStore.IsProcessed(hash) {
-			status = "✅ Processed"
-		}
-
 		items[i] = item{
 			title:       basename,
-			description: fmt.Sprintf("%s • %s", status, file),
+			description: file,
 			action:      file,
 		}
 	}
@@ -45,27 +37,22 @@ func (m *Model) loadLibraryPapers() {
 	}
 }
 
-// loadProcessedPapers loads processed papers (excludes failed ones)
+// loadProcessedPapers loads papers from reports folder
 func (m *Model) loadProcessedPapers() {
-	records := m.metadataStore.GetAllRecords()
+	files, err := fileutil.GetPDFFiles(m.config.ReportOutputDir)
+	if err != nil {
+		m.err = err
+		return
+	}
 
-	// Filter out failed papers
 	items := make([]list.Item, 0)
-	for _, record := range records {
-		// Skip failed papers - don't show them in TUI
-		if record.Status == storage.StatusFailed {
-			continue
-		}
-
-		statusIcon := "✅"
-		if record.Status == storage.StatusProcessing {
-			statusIcon = "⏳"
-		}
+	for _, file := range files {
+		basename := filepath.Base(file)
 
 		items = append(items, item{
-			title:       record.PaperTitle,
-			description: fmt.Sprintf("%s %s • Processed: %s", statusIcon, record.Status, record.ProcessedAt.Format("2006-01-02 15:04")),
-			action:      record.FilePath,
+			title:       basename,
+			description: file,
+			action:      file,
 		})
 	}
 
@@ -91,12 +78,6 @@ func (m *Model) loadPapersForSelection() {
 	for _, file := range files {
 		basename := filepath.Base(file)
 
-		// Check if processed
-		hash, _ := fileutil.ComputeFileHash(file)
-		if m.metadataStore.IsProcessed(hash) {
-			continue // Skip already processed papers
-		}
-
 		items = append(items, item{
 			title:       basename,
 			description: file,
@@ -106,10 +87,43 @@ func (m *Model) loadPapersForSelection() {
 
 	delegate := createStyledDelegate()
 	m.singlePaperList = list.New(items, delegate, 0, 0)
-	m.singlePaperList.Title = fmt.Sprintf("📄 Select Paper to Process (%d unprocessed)", len(items))
+	m.singlePaperList.Title = fmt.Sprintf("📄 Select Paper to Process (%d papers)", len(items))
 	m.singlePaperList.SetShowStatusBar(false)
 	m.singlePaperList.Styles.Title = titleStyle
 	if m.width > 0 && m.height > 0 {
 		m.singlePaperList.SetSize(m.width-4, m.height-8)
+	}
+}
+
+// loadPapersForMultiSelection loads papers for multi-selection
+func (m *Model) loadPapersForMultiSelection() {
+	files, err := fileutil.GetPDFFiles(m.config.InputDir)
+	if err != nil {
+		m.err = err
+		return
+	}
+
+	// Store all files for later reference
+	m.allPapersForSelect = files
+	m.multiSelectIndexes = make(map[int]bool)
+
+	items := make([]list.Item, 0)
+	for _, file := range files {
+		basename := filepath.Base(file)
+
+		items = append(items, item{
+			title:       basename,
+			description: file,
+			action:      file,
+		})
+	}
+
+	delegate := createStyledDelegate()
+	m.multiPaperList = list.New(items, delegate, 0, 0)
+	m.multiPaperList.Title = fmt.Sprintf("📋 Select Papers (Space to toggle, Enter to confirm) - 0 selected", len(items))
+	m.multiPaperList.SetShowStatusBar(false)
+	m.multiPaperList.Styles.Title = titleStyle
+	if m.width > 0 && m.height > 0 {
+		m.multiPaperList.SetSize(m.width-4, m.height-8)
 	}
 }

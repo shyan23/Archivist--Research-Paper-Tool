@@ -22,12 +22,11 @@ var (
 	ColorBold    = color.New(color.Bold)
 )
 
-// ProcessingMode represents the quality vs speed tradeoff
+// ProcessingMode represents the processing mode
 type ProcessingMode string
 
 const (
-	ModeFast    ProcessingMode = "fast"
-	ModeQuality ProcessingMode = "quality"
+	ModeFast ProcessingMode = "fast"
 )
 
 // ModeConfig holds the configuration for each mode
@@ -61,19 +60,6 @@ func GetModeConfigs() map[ProcessingMode]ModeConfig {
 			QualityRating:      "⭐⭐⭐ Good",
 			MultiStageAnalysis: false,
 		},
-		ModeQuality: {
-			Name:               "Quality Mode",
-			Description:        "Thorough analysis with self-reflection and validation",
-			Icon:               "🎯",
-			AgenticEnabled:     true,
-			SelfReflection:     true,
-			MaxIterations:      2,
-			ValidationEnabled:  true,
-			Model:              "gemini-1.5-pro",
-			EstimatedTime:      "~90-120 seconds per paper",
-			QualityRating:      "⭐⭐⭐⭐⭐ Excellent",
-			MultiStageAnalysis: true,
-		},
 	}
 }
 
@@ -87,46 +73,12 @@ func ShowBanner() {
 	fmt.Println()
 }
 
-// PromptMode asks the user to select a processing mode
+// PromptMode returns the fast mode (since it's the only mode now)
 // Returns empty string and error if user wants to go back
 func PromptMode() (ProcessingMode, error) {
-	modes := GetModeConfigs()
-
-	items := []string{
-		fmt.Sprintf("%s %s - %s (%s)", modes[ModeFast].Icon, modes[ModeFast].Name, modes[ModeFast].Description, modes[ModeFast].EstimatedTime),
-		fmt.Sprintf("%s %s - %s (%s)", modes[ModeQuality].Icon, modes[ModeQuality].Name, modes[ModeQuality].Description, modes[ModeQuality].EstimatedTime),
-		"⬅️  Go Back",
-	}
-
-	prompt := promptui.Select{
-		Label: "Select Processing Mode (ESC to go back)",
-		Items: items,
-		Templates: &promptui.SelectTemplates{
-			Label:    "{{ . | cyan | bold }}",
-			Active:   "▸ {{ . | green | bold }}",
-			Inactive: "  {{ . }}",
-			Selected: "✔ {{ . | green }}",
-		},
-		Size: 3,
-	}
-
-	idx, _, err := prompt.Run()
-	if err != nil {
-		// User pressed ESC or Ctrl+C
-		return "", err
-	}
-
-	switch idx {
-	case 0:
-		return ModeFast, nil
-	case 1:
-		return ModeQuality, nil
-	case 2:
-		// User selected "Go Back"
-		return "", fmt.Errorf("user cancelled")
-	}
-
-	return "", fmt.Errorf("invalid selection")
+	// Since we only have one mode now, just return it directly
+	// No need to prompt the user
+	return ModeFast, nil
 }
 
 // ShowModeDetails displays detailed information about the selected mode
@@ -156,10 +108,6 @@ func ShowModeDetailsWithConfig(mode ProcessingMode, actualConfig *app.Config) {
 
 	// Get actual model name from config
 	actualModel := actualConfig.Gemini.Model
-	if mode == ModeQuality && actualConfig.Gemini.Agentic.Enabled {
-		// For quality mode with agentic enabled, show the methodology analysis model
-		actualModel = actualConfig.Gemini.Agentic.Stages.MethodologyAnalysis.Model
-	}
 
 	fmt.Println()
 	ColorBold.Printf("═══════════════════════════════════════════════════════════════\n")
@@ -174,6 +122,97 @@ func ShowModeDetailsWithConfig(mode ProcessingMode, actualConfig *app.Config) {
 	fmt.Printf("  ✅ Validation:        %s\n", formatBool(actualConfig.Gemini.Agentic.Stages.LatexGeneration.Validation))
 	fmt.Printf("  🔬 Multi-Stage:       %s\n", formatBool(actualConfig.Gemini.Agentic.MultiStageAnalysis))
 	fmt.Println()
+}
+
+// PromptSelectPapers allows the user to select multiple papers from a list
+func PromptSelectPapers(papers []string) ([]string, error) {
+	if len(papers) == 0 {
+		return nil, fmt.Errorf("no papers available")
+	}
+
+	// Create display items with indices
+	items := make([]string, len(papers))
+	for i, paper := range papers {
+		items[i] = fmt.Sprintf("%d. %s", i+1, paper)
+	}
+
+	ColorBold.Println("═══════════════════════════════════════════════════════════════")
+	ColorBold.Println("              SELECT PAPERS TO PROCESS                         ")
+	ColorBold.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println()
+	ColorInfo.Println("Available papers:")
+	fmt.Println()
+
+	for _, item := range items {
+		ColorTitle.Println(item)
+	}
+
+	fmt.Println()
+	ColorSubtle.Println("Enter paper numbers separated by commas (e.g., 1,3,5)")
+	ColorSubtle.Println("Or enter 'all' to select all papers")
+	ColorSubtle.Println("Press Ctrl+C to cancel")
+	fmt.Println()
+
+	prompt := promptui.Prompt{
+		Label: "Select papers",
+	}
+
+	input, err := prompt.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle "all" case
+	if input == "all" || input == "ALL" {
+		return papers, nil
+	}
+
+	// Parse comma-separated indices
+	var selected []string
+	var indices []int
+
+	// Split by comma and parse each number
+	parts := splitByComma(input)
+	for _, part := range parts {
+		var idx int
+		_, err := fmt.Sscanf(part, "%d", &idx)
+		if err != nil || idx < 1 || idx > len(papers) {
+			PrintWarning(fmt.Sprintf("Invalid index: %s (must be between 1 and %d)", part, len(papers)))
+			continue
+		}
+		indices = append(indices, idx-1)
+	}
+
+	if len(indices) == 0 {
+		return nil, fmt.Errorf("no valid papers selected")
+	}
+
+	// Get selected papers
+	for _, idx := range indices {
+		selected = append(selected, papers[idx])
+	}
+
+	return selected, nil
+}
+
+// splitByComma splits a string by comma and trims whitespace
+func splitByComma(s string) []string {
+	var parts []string
+	current := ""
+	for _, char := range s {
+		if char == ',' {
+			if len(current) > 0 {
+				parts = append(parts, current)
+				current = ""
+			}
+		} else if char != ' ' && char != '\t' {
+			current += string(char)
+		}
+	}
+	if len(current) > 0 {
+		parts = append(parts, current)
+	}
+	return parts
 }
 
 // ConfirmProcessing asks for final confirmation

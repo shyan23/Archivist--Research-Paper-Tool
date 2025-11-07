@@ -6,7 +6,6 @@ import (
 	"archivist/internal/cache"
 	"archivist/internal/compiler"
 	"archivist/internal/generator"
-	"archivist/internal/storage"
 	"archivist/internal/ui"
 	"archivist/pkg/fileutil"
 	"context"
@@ -39,18 +38,16 @@ type WorkerPool struct {
 	results    chan *ProcessingResult
 	wg         sync.WaitGroup
 	config     *app.Config
-	metadata   *storage.MetadataStore
 	cache      *cache.RedisCache
 }
 
 // NewWorkerPool creates a new worker pool
-func NewWorkerPool(numWorkers int, config *app.Config, metadata *storage.MetadataStore, redisCache *cache.RedisCache) *WorkerPool {
+func NewWorkerPool(numWorkers int, config *app.Config, redisCache *cache.RedisCache) *WorkerPool {
 	return &WorkerPool{
 		numWorkers: numWorkers,
 		jobs:       make(chan *ProcessingJob, numWorkers*2),
 		results:    make(chan *ProcessingResult, numWorkers*2),
 		config:     config,
-		metadata:   metadata,
 		cache:      redisCache,
 	}
 }
@@ -89,21 +86,13 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 
 	log.Printf("  ⏱️  Starting processing pipeline for: %s", job.FilePath)
 
-	// Compute hash first for tracking (but don't let failures block processing)
+	// Compute hash for cache lookup
 	fileHash, err := fileutil.ComputeFileHash(job.FilePath)
 	if err != nil {
-		log.Printf("  ⚠️  Warning: Could not compute hash initially: %v", err)
+		log.Printf("  ⚠️  Warning: Could not compute hash: %v", err)
 		fileHash = fmt.Sprintf("temp_%d", time.Now().UnixNano()) // Temporary hash
 	}
 	job.FileHash = fileHash
-
-	// Atomically try to mark as processing - this prevents race conditions
-	// where multiple workers try to process the same file
-	if !wp.metadata.TryMarkProcessing(fileHash, job.FilePath) {
-		log.Printf("  ⏭️  Skipping (already being processed or completed): %s", job.FilePath)
-		result.Error = fmt.Errorf("file already processed or being processed")
-		return result
-	}
 
 	// Step 1: Create analyzer
 	stepStart := time.Now()
@@ -111,7 +100,6 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 	analyzer, err := analyzer.NewAnalyzer(wp.config)
 	if err != nil {
 		result.Error = fmt.Errorf("failed to create analyzer: %w", err)
-		wp.metadata.MarkFailed(job.FileHash, result.Error.Error())
 		return result
 	}
 	defer analyzer.Close()
@@ -143,29 +131,14 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 		latexContent, err = analyzer.AnalyzePaper(ctx, job.FilePath)
 		if err != nil {
 			result.Error = fmt.Errorf("analysis failed: %w", err)
-			wp.metadata.MarkFailed(job.FileHash, result.Error.Error())
 			return result
 		}
 		log.Printf("  ✓ Analysis complete (%.2fs)", time.Since(stepStart).Seconds())
 
-		// Extract title for caching
+		// Extract title (but DON'T cache yet - wait for successful PDF compilation)
 		paperTitle = extractTitleFromLatex(latexContent)
 		if paperTitle == "" {
 			paperTitle = "Unknown Paper"
-		}
-
-		// Cache the result if caching is enabled
-		if wp.cache != nil {
-			log.Printf("  💾 Caching analysis result...")
-			cacheEntry := &cache.CachedAnalysis{
-				ContentHash:  fileHash,
-				PaperTitle:   paperTitle,
-				LatexContent: latexContent,
-				ModelUsed:    wp.config.Gemini.Model,
-			}
-			if err := wp.cache.Set(ctx, fileHash, cacheEntry); err != nil {
-				log.Printf("  ⚠️  Failed to cache result: %v", err)
-			}
 		}
 	}
 
@@ -179,7 +152,6 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 	texPath, err := latexGen.GenerateLatexFile(paperTitle, latexContent)
 	if err != nil {
 		result.Error = fmt.Errorf("LaTeX generation failed: %w", err)
-		wp.metadata.MarkFailed(job.FileHash, result.Error.Error())
 		return result
 	}
 	result.TexFile = texPath
@@ -198,31 +170,32 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 	reportPath, err := compiler.Compile(texPath)
 	if err != nil {
 		result.Error = fmt.Errorf("PDF compilation failed: %w", err)
-		wp.metadata.MarkFailed(job.FileHash, result.Error.Error())
 		return result
 	}
 	result.ReportFile = reportPath
 	log.Printf("  ✓ PDF compiled: %s (%.2fs)", reportPath, time.Since(stepStart).Seconds())
 
-	// Step 6: Compute final hash after successful processing
-	log.Printf("  🔐 Computing final file hash...")
-	finalHash, err := fileutil.ComputeFileHash(job.FilePath)
-	if err != nil {
-		log.Printf("  ⚠️  Warning: Could not compute final hash, using initial: %v", err)
-		finalHash = job.FileHash // Use initial hash if final computation fails
-	} else {
-		job.FileHash = finalHash // Update with final hash
+	// Step 5: NOW cache the result after successful PDF compilation
+	// Only cache if we generated new content (not from cache)
+	if wp.cache != nil && latexContent != "" {
+		// Check if this was a cache hit by seeing if we have the cache marker
+		cached, _ := wp.cache.Get(ctx, fileHash)
+		if cached == nil {
+			// This was NOT from cache, so cache it now
+			log.Printf("  💾 Caching successful analysis result...")
+			cacheEntry := &cache.CachedAnalysis{
+				ContentHash:  fileHash,
+				PaperTitle:   paperTitle,
+				LatexContent: latexContent,
+				ModelUsed:    wp.config.Gemini.Model,
+			}
+			if err := wp.cache.Set(ctx, fileHash, cacheEntry); err != nil {
+				log.Printf("  ⚠️  Failed to cache result: %v", err)
+			} else {
+				log.Printf("  ✓ Analysis cached for future use")
+			}
+		}
 	}
-
-	// Step 5: Mark as completed
-	log.Printf("  💾 Saving metadata and marking as complete...")
-	wp.metadata.MarkCompleted(storage.ProcessingRecord{
-		FilePath:    job.FilePath,
-		FileHash:    job.FileHash,
-		PaperTitle:  paperTitle,
-		TexFilePath: texPath,
-		ReportPath:  reportPath,
-	})
 
 	result.Duration = time.Since(startTime)
 	log.Printf("  🎉 Processing complete! Total time: %.2fs", result.Duration.Seconds())
@@ -252,14 +225,9 @@ func (wp *WorkerPool) Results() <-chan *ProcessingResult {
 
 // ProcessBatch processes a batch of PDF files
 func ProcessBatch(ctx context.Context, files []string, config *app.Config, force bool) error {
-	// Initialize metadata store
-	metadataStore, err := storage.NewMetadataStore(config.MetadataDir)
-	if err != nil {
-		return fmt.Errorf("failed to initialize metadata store: %w", err)
-	}
-
 	// Initialize Redis cache if enabled
 	var redisCache *cache.RedisCache
+	var err error
 	if config.Cache.Enabled && config.Cache.Type == "redis" {
 		log.Println("🔌 Initializing Redis cache...")
 		ttl := time.Duration(config.Cache.TTL) * time.Hour
@@ -280,25 +248,26 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 		}
 	}
 
-	// Queue files for processing (hash will be computed after successful processing)
+	// Queue files for processing
 	log.Println("🔍 Queuing files for processing...")
 	var jobsToProcess []*ProcessingJob
 	for _, file := range files {
-		// Skip hash check if force flag is set
-		if !force {
-			// Quick check: try to compute hash to see if already processed
-			// But don't fail if hash computation fails - just process anyway
+		// If not force mode and cache is enabled, check cache to skip already processed files
+		if !force && redisCache != nil {
 			hash, err := fileutil.ComputeFileHash(file)
-			if err == nil && metadataStore.IsProcessed(hash) {
-				log.Printf("  ⏭️  Skipping (already processed): %s", file)
-				continue
+			if err == nil {
+				cached, _ := redisCache.Get(ctx, hash)
+				if cached != nil {
+					log.Printf("  ⏭️  Skipping (already in cache): %s", file)
+					continue
+				}
 			}
 		}
 
 		log.Printf("  ✅ Queued for processing: %s", file)
 		jobsToProcess = append(jobsToProcess, &ProcessingJob{
 			FilePath: file,
-			FileHash: "", // Will be computed after successful processing
+			FileHash: "",
 		})
 	}
 
@@ -310,7 +279,7 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 	log.Printf("Processing %d files with %d workers", len(jobsToProcess), config.Processing.MaxWorkers)
 
 	// Create and start worker pool
-	pool := NewWorkerPool(config.Processing.MaxWorkers, config, metadataStore, redisCache)
+	pool := NewWorkerPool(config.Processing.MaxWorkers, config, redisCache)
 	pool.Start(ctx)
 
 	// Submit jobs
@@ -332,17 +301,6 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 
 	for result := range pool.Results() {
 		processedCount++
-
-		// Check if error is due to duplicate (already processed)
-		isDuplicate := result.Error != nil &&
-			(result.Error.Error() == "file already processed or being processed")
-
-		if isDuplicate {
-			// Don't count duplicates as failures - they're skipped
-			skipped++
-			bar.Add(1)
-			continue // Don't print anything for duplicates caught by workers
-		}
 
 		// Update progress bar description with current status
 		bar.Describe(fmt.Sprintf("📚 [%d/%d] Processing papers (✅ %d | ❌ %d)",

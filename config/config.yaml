@@ -1,7 +1,6 @@
 input_dir: "./lib"
 tex_output_dir: "./tex_files"
 report_output_dir: "./reports"
-metadata_dir: "./.metadata"
 
 processing:
   max_workers: 8                   # ✅ Increased for batch processing
@@ -9,32 +8,32 @@ processing:
   timeout_per_paper: 600
 
 gemini:
-  model: "gemini-1.5-flash"        # ✅ Fast model for everything
+  model: "models/gemini-2.0-flash-exp"    # ✅ Latest fast model
   max_tokens: 8000
   temperature: 0.3
 
-  # Agentic workflow settings (OPTIMIZED FOR SINGLE API CALL)
+  # Agentic workflow settings (OPTIMIZED FOR QUALITY)
   agentic:
-    enabled: false                 # ✅ Disabled: use simple single API call workflow
-    max_iterations: 1              # ✅ Reduced from 3 to 1
-    self_reflection: false         # ✅ Disabled (saves 40-60s, reduces API calls)
+    enabled: true                  # ✅ Enable for LaTeX validation
+    max_iterations: 1              # ✅ Minimal iterations
+    self_reflection: false         # ✅ Disabled (saves time)
     multi_stage_analysis: false    # ✅ Single-stage is faster
 
     # Stage-specific settings
     stages:
       metadata_extraction:
-        model: "gemini-1.5-flash"
+        model: "models/gemini-2.0-flash-exp"
         temperature: 1
 
       methodology_analysis:
-        model: "models/gemini-2.0-flash-thinking-exp"  # ✅ Thinking model with deep reasoning
+        model: "models/gemini-2.0-flash-exp"  # ✅ Use same model everywhere
         temperature: 1
         thinking_budget: 10000
 
       latex_generation:
-        model: "gemini-1.5-flash"
+        model: "models/gemini-2.0-flash-exp"
         temperature: 1
-        validation: true         # ✅ Disabled (saves 8-15s)
+        validation: true
 
     # Retry and error recovery
     retry:
@@ -62,5 +61,5 @@ cache:
 # Logging and monitoring
 logging:
   level: "info"
-  file: ".metadata/processing.log"
+  file: "./logs/processing.log"
   console: true

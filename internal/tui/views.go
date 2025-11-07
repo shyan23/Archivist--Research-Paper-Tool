@@ -29,6 +29,15 @@ func (m Model) View() string {
 		} else {
 			content = m.singlePaperList.View()
 		}
+	case screenSelectMultiplePapers:
+		if len(m.multiPaperList.Items()) == 0 {
+			content = warningStyle.Render("\n⚠️  No papers found in library\n\n") +
+				helpStyle.Render("Press ESC to go back")
+		} else {
+			// Add visual indicator for selected items
+			listView := m.multiPaperList.View()
+			content = listView + "\n" + helpStyle.Render("Tip: Use Space to toggle selection, Enter to confirm")
+		}
 	}
 
 	// Footer with help (add Ctrl+P hint)

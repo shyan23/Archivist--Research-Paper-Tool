@@ -85,15 +85,9 @@ func (cw *ConfigWizard) configureDirectories() error {
 		return err
 	}
 
-	metadataDir, err := cw.promptString("Metadata directory", "./.metadata")
-	if err != nil {
-		return err
-	}
-
 	cw.config["input_dir"] = inputDir
 	cw.config["tex_output_dir"] = texOutputDir
 	cw.config["report_output_dir"] = reportOutputDir
-	cw.config["metadata_dir"] = metadataDir
 
 	fmt.Println()
 	return nil
@@ -287,7 +281,7 @@ func (cw *ConfigWizard) configureLogging() error {
 		return err
 	}
 
-	logFile, err := cw.promptString("Log file path", ".metadata/processing.log")
+	logFile, err := cw.promptString("Log file path", "./logs/processing.log")
 	if err != nil {
 		return err
 	}

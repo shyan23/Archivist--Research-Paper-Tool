@@ -144,34 +144,54 @@ Output:`, latexContent)
 		log.Println("     ✓ Stage 2 complete")
 	}
 
-	// Stage 3: Validation removed to reduce API calls
-	// LaTeX validation is now skipped to keep API usage to minimum
+	// Stage 3: Syntax validation after self-reflection
+	log.Println("     🔍 Stage 3: Syntax validation (Gemini API)")
+	stage3Start := time.Now()
+	validatedContent, err := a.validateLatexSyntax(ctx, latexContent)
+	if err != nil {
+		log.Printf("     ⚠️  Syntax validation failed: %v (continuing with current)", err)
+	} else {
+		latexContent = validatedContent
+		log.Printf("     ✓ Stage 3 complete (%.2fs)", time.Since(stage3Start).Seconds())
+	}
 
 	return latexContent, nil
 }
 
-// validateLatex validates and fixes LaTeX syntax
-func (a *Analyzer) validateLatex(ctx context.Context, latexContent string) (string, error) {
-	log.Println("     → Calling Gemini API for LaTeX validation...")
-	validationPrompt := fmt.Sprintf(ValidationPrompt, latexContent)
+// validateLatexSyntax performs Gemini-based syntax validation only
+func (a *Analyzer) validateLatexSyntax(ctx context.Context, latexContent string) (string, error) {
+	log.Println("     → Calling Gemini API for syntax-only validation...")
+
+	validationPrompt := fmt.Sprintf(SyntaxValidationPrompt, latexContent)
 
 	result, err := a.client.GenerateText(ctx, validationPrompt)
 	if err != nil {
-		return latexContent, err
+		return latexContent, fmt.Errorf("syntax validation API call failed: %w", err)
 	}
 
+	result = strings.TrimSpace(result)
 	if strings.Contains(result, "VALID") {
-		log.Println("     ✓ LaTeX syntax validated (no issues found)")
+		log.Println("     ✓ No syntax errors found")
 		return latexContent, nil
 	}
 
-	log.Println("     ✓ LaTeX syntax corrected")
-	// Return the corrected version
+	log.Println("     ✓ Syntax errors corrected by Gemini")
 	return cleanLatexOutput(result), nil
 }
 
 // cleanLatexOutput removes markdown code blocks and trims whitespace
 func cleanLatexOutput(content string) string {
+	// CRITICAL FIX: Replace literal \n (backslash followed by 'n') with actual newlines
+	// The LLM sometimes generates literal "\n" string instead of actual line breaks
+	// Use regex to only match \n that's NOT part of \newline, \newcommand, etc.
+	// Pattern: \n not followed by 'e' (which would make it \newline, \newpage, etc.)
+	nlRe := regexp.MustCompile(`\\n([^ew])`)
+	content = nlRe.ReplaceAllString(content, "\n$1")
+
+	// Also handle \n at end of brace contexts
+	content = strings.ReplaceAll(content, "}\\n", "}\n")
+	content = strings.ReplaceAll(content, "{\\n", "{\n")
+
 	// Remove markdown code blocks if present
 	content = strings.ReplaceAll(content, "```latex", "")
 	content = strings.ReplaceAll(content, "```tex", "")
@@ -187,11 +207,11 @@ func cleanLatexOutput(content string) string {
 
 		// Skip lines that look like feedback or markdown headers
 		if strings.HasPrefix(trimmed, "An excellent") ||
-		   strings.HasPrefix(trimmed, "However,") ||
-		   strings.HasPrefix(trimmed, "Here is") ||
-		   strings.HasPrefix(trimmed, "###") ||
-		   strings.HasPrefix(trimmed, "IMPROVED") ||
-		   strings.HasPrefix(trimmed, "APPROVED") {
+			strings.HasPrefix(trimmed, "However,") ||
+			strings.HasPrefix(trimmed, "Here is") ||
+			strings.HasPrefix(trimmed, "###") ||
+			strings.HasPrefix(trimmed, "IMPROVED") ||
+			strings.HasPrefix(trimmed, "APPROVED") {
 			skipFeedback = true
 			continue
 		}
@@ -247,131 +267,6 @@ func cleanLatexOutput(content string) string {
 
 	// Trim whitespace
 	content = strings.TrimSpace(content)
-
-	// Fix common LaTeX typos
-	content = fixCommonLatexErrors(content)
-
-	// Ensure document is properly closed
-	content = ensureLatexComplete(content)
-
-	return content
-}
-
-// fixCommonLatexErrors fixes common LaTeX typos and errors
-func fixCommonLatexErrors(content string) string {
-	// Fix common typos
-	content = strings.ReplaceAll(content, "\\tablecontents", "\\tableofcontents")
-	content = strings.ReplaceAll(content, "\\beginenumerate", "\\begin{enumerate}")
-	content = strings.ReplaceAll(content, "\\beginitemize", "\\begin{itemize}")
-
-	// Fix malformed text commands like \textitword -> \textit{word}
-	content = fixMalformedTextCommands(content)
-
-	// Convert Unicode math symbols to LaTeX commands
-	unicodeToLatex := map[string]string{
-		"∈": "\\in",
-		"∉": "\\notin",
-		"⊂": "\\subset",
-		"⊆": "\\subseteq",
-		"⊃": "\\supset",
-		"⊇": "\\supseteq",
-		"∪": "\\cup",
-		"∩": "\\cap",
-		"∅": "\\emptyset",
-		"∞": "\\infty",
-		"≤": "\\leq",
-		"≥": "\\geq",
-		"≠": "\\neq",
-		"≈": "\\approx",
-		"≡": "\\equiv",
-		"∀": "\\forall",
-		"∃": "\\exists",
-		"→": "\\rightarrow",
-		"←": "\\leftarrow",
-		"⇒": "\\Rightarrow",
-		"⇐": "\\Leftarrow",
-		"⇔": "\\Leftrightarrow",
-		"×": "\\times",
-		"÷": "\\div",
-		"±": "\\pm",
-		"∓": "\\mp",
-		"√": "\\sqrt",
-		"∑": "\\sum",
-		"∏": "\\prod",
-		"∫": "\\int",
-		"∂": "\\partial",
-		"∇": "\\nabla",
-		"α": "\\alpha",
-		"β": "\\beta",
-		"γ": "\\gamma",
-		"δ": "\\delta",
-		"ε": "\\epsilon",
-		"θ": "\\theta",
-		"λ": "\\lambda",
-		"μ": "\\mu",
-		"π": "\\pi",
-		"σ": "\\sigma",
-		"τ": "\\tau",
-		"φ": "\\phi",
-		"ω": "\\omega",
-		"Δ": "\\Delta",
-		"Σ": "\\Sigma",
-		"Ω": "\\Omega",
-	}
-
-	for unicode, latex := range unicodeToLatex {
-		content = strings.ReplaceAll(content, unicode, latex)
-	}
-
-	return content
-}
-
-// fixMalformedTextCommands fixes malformed LaTeX text commands
-// Converts \textitword to \textit{word}, \textbfword to \textbf{word}, etc.
-func fixMalformedTextCommands(content string) string {
-	// List of text formatting commands
-	textCommands := []string{"textit", "textbf", "texttt", "emph", "underline"}
-
-	for _, cmd := range textCommands {
-		// Pattern: \textit followed by alphanumeric characters without braces
-		// Example: \textitcompletely -> \textit{completely}
-		re := regexp.MustCompile(`\\` + cmd + `([a-zA-Z]+)`)
-		content = re.ReplaceAllString(content, `\`+cmd+`{$1}`)
-	}
-
-	return content
-}
-
-// ensureLatexComplete checks and fixes incomplete LaTeX documents
-func ensureLatexComplete(content string) string {
-	// Check if document ends with \end{document}
-	if !strings.Contains(content, "\\end{document}") {
-		content += "\n\\end{document}"
-	}
-
-	// Count and close any unclosed environments
-	// Track common environments
-	environments := []string{"itemize", "enumerate", "description", "keyinsight", "prerequisite"}
-
-	for _, env := range environments {
-		beginCount := strings.Count(content, "\\begin{"+env+"}")
-		endCount := strings.Count(content, "\\end{"+env+"}")
-
-		// Add missing \end{} tags before \end{document}
-		if beginCount > endCount {
-			missing := beginCount - endCount
-			// Find position of \end{document}
-			docEndPos := strings.LastIndex(content, "\\end{document}")
-			if docEndPos != -1 {
-				// Insert missing closing tags before \end{document}
-				closingTags := ""
-				for i := 0; i < missing; i++ {
-					closingTags += "\\end{" + env + "}\n"
-				}
-				content = content[:docEndPos] + closingTags + "\n" + content[docEndPos:]
-			}
-		}
-	}
 
 	return content
 }

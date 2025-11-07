@@ -116,14 +116,19 @@ LATEX SYNTAX RULES (CRITICAL):
 - Math mode: Use $x \in R$ NOT $x ∈ R$
 `
 
-// ValidationPrompt is used to validate and fix LaTeX syntax
-const ValidationPrompt = `You are a LaTeX expert. Review this LaTeX document and fix any syntax errors.
+// SyntaxValidationPrompt is used for focused syntax-only validation
+const SyntaxValidationPrompt = `You are a LaTeX syntax expert. Your ONLY job is to check for and fix syntax errors.
 
-If the document is valid, respond with: VALID
+Check this LaTeX document for ALL syntax errors:
+- Unclosed braces { }
+- Unclosed environments (\begin{} without \end{})
+- Invalid command syntax (e.g., \textbf{word text -> \textbf{word} text)
+- Unescaped special characters
+- Missing $ for math mode
+- Any compilation errors
 
-If there are errors, output the CORRECTED LaTeX document (complete, not just the fixes).
+CRITICAL: If you find ANY errors, output the COMPLETE CORRECTED LaTeX document.
+If there are NO errors, output exactly: VALID
 
-Document to review:
-%s
-
-Output:`
+Document to check:
+%s`

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"archivist/internal/app"
-	"archivist/internal/storage"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -16,26 +15,30 @@ const (
 	screenViewLibrary
 	screenViewProcessed
 	screenSelectPaper
+	screenSelectMultiplePapers
 	screenProcessing
 )
 
 // Model represents the TUI application state
 type Model struct {
-	screen          screen
-	screenHistory   []screen // Navigation stack for back button
-	config          *app.Config
-	metadataStore   *storage.MetadataStore
-	mainMenu        list.Model
-	libraryList     list.Model
-	processedList   list.Model
-	singlePaperList list.Model
-	commandPalette  CommandPalette
-	selectedPaper   string
-	width           int
-	height          int
-	err             error
-	processing      bool
-	processingMsg   string
+	screen             screen
+	screenHistory      []screen // Navigation stack for back button
+	config             *app.Config
+	mainMenu           list.Model
+	libraryList        list.Model
+	processedList      list.Model
+	singlePaperList    list.Model
+	multiPaperList     list.Model
+	commandPalette     CommandPalette
+	selectedPaper      string
+	selectedPapers     []string          // For multi-select
+	multiSelectIndexes map[int]bool      // Track selected indices
+	allPapersForSelect []string          // Store all available papers
+	width              int
+	height             int
+	err                error
+	processing         bool
+	processingMsg      string
 }
 
 // Item represents a menu item

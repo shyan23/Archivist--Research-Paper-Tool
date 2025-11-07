@@ -33,6 +33,8 @@ func (m Model) getHelp() string {
 		return "↑/↓: Navigate • Enter: Open Report • ESC: Back • Q: Quit"
 	case screenSelectPaper:
 		return "↑/↓: Navigate • Enter: Process Paper • ESC: Back • Q: Quit"
+	case screenSelectMultiplePapers:
+		return "↑/↓: Navigate • Space: Toggle Selection • Enter: Process Selected • ESC: Back • Q: Quit"
 	default:
 		return "↑/↓: Navigate • Enter: Select • ESC: Back • Q: Quit"
 	}
