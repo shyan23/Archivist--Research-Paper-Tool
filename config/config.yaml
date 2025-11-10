@@ -46,7 +46,7 @@ latex:
   engine: "latexmk"
   clean_aux: true
 
-hash_algorithm: "md5"
+hash_algorithm: "sha256"
 
 # Redis-based caching for analysis results
 cache:
@@ -54,7 +54,7 @@ cache:
   type: "redis"                   # "redis" or "memory"
   ttl: 720                        # Cache TTL in hours (30 days)
   redis:
-    addr: "localhost:6379"        # Redis server address
+    addr: "localhost:6379"        # Redis Stack server address (port 6379)
     password: ""                  # Redis password (empty for no auth)
     db: 0                         # Redis database number
 

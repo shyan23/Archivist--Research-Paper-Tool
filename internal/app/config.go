@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"os"
+	"runtime"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
@@ -114,12 +116,94 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("GEMINI_API_KEY not found in environment")
 	}
 
+	// Validate configuration
+	if err := validateConfig(&config); err != nil {
+		return nil, err
+	}
+
 	// Validate and create directories
 	if err := ensureDirectories(&config); err != nil {
 		return nil, err
 	}
 
 	return &config, nil
+}
+
+// validateConfig validates the configuration values
+func validateConfig(config *Config) error {
+	// Validate MaxWorkers
+	if config.Processing.MaxWorkers <= 0 {
+		return fmt.Errorf("max_workers must be > 0, got %d", config.Processing.MaxWorkers)
+	}
+	if config.Processing.MaxWorkers > runtime.NumCPU() {
+		return fmt.Errorf("max_workers (%d) exceeds available CPUs (%d)",
+			config.Processing.MaxWorkers, runtime.NumCPU())
+	}
+
+	// Validate TimeoutPerPaper
+	if config.Processing.TimeoutPerPaper <= 0 {
+		return fmt.Errorf("timeout_per_paper must be > 0 seconds, got %d",
+			config.Processing.TimeoutPerPaper)
+	}
+
+	// Validate Temperature
+	if config.Gemini.Temperature < 0 || config.Gemini.Temperature > 2 {
+		return fmt.Errorf("temperature must be in range [0, 2], got %.2f",
+			config.Gemini.Temperature)
+	}
+
+	// Validate Model format
+	if !strings.HasPrefix(config.Gemini.Model, "models/") {
+		return fmt.Errorf("invalid model format: %s (must start with 'models/')",
+			config.Gemini.Model)
+	}
+
+	// Validate MaxTokens
+	if config.Gemini.MaxTokens <= 0 {
+		return fmt.Errorf("max_tokens must be > 0, got %d", config.Gemini.MaxTokens)
+	}
+
+	// Validate Cache TTL if caching is enabled
+	if config.Cache.Enabled && config.Cache.TTL <= 0 {
+		return fmt.Errorf("cache TTL must be > 0 hours when caching is enabled, got %d",
+			config.Cache.TTL)
+	}
+
+	// Validate Cache Type
+	if config.Cache.Enabled && config.Cache.Type != "redis" && config.Cache.Type != "memory" {
+		return fmt.Errorf("cache type must be 'redis' or 'memory', got '%s'",
+			config.Cache.Type)
+	}
+
+	// Validate Latex Compiler
+	validCompilers := []string{"pdflatex", "xelatex", "lualatex"}
+	isValidCompiler := false
+	for _, valid := range validCompilers {
+		if config.Latex.Compiler == valid {
+			isValidCompiler = true
+			break
+		}
+	}
+	if !isValidCompiler {
+		return fmt.Errorf("invalid latex compiler: %s (must be one of: %v)",
+			config.Latex.Compiler, validCompilers)
+	}
+
+	// Validate Hash Algorithm
+	validHashAlgos := []string{"sha256", "sha512", "md5"}
+	isValidHash := false
+	for _, valid := range validHashAlgos {
+		if config.HashAlgorithm == valid {
+			isValidHash = true
+			break
+		}
+	}
+	if !isValidHash {
+		return fmt.Errorf("invalid hash_algorithm: %s (must be one of: %v)",
+			config.HashAlgorithm, validHashAlgos)
+	}
+
+	return nil
 }
 
 func ensureDirectories(config *Config) error {

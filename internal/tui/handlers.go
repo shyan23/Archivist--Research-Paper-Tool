@@ -6,10 +6,13 @@ import (
 	"archivist/internal/ui"
 	"archivist/internal/worker"
 	"archivist/pkg/fileutil"
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -53,6 +56,9 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 		case "view_processed":
 			m.navigateTo(screenViewProcessed)
 			m.loadProcessedPapers()
+		case "chat":
+			m.navigateTo(screenChatMenu)
+			m.loadChatMenu()
 		case "process_single":
 			m.navigateTo(screenSelectPaper)
 			m.loadPapersForSelection()
@@ -108,6 +114,29 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 			// Start processing
 			return m, tea.Quit
 		}
+	} else if m.screen == screenChatMenu {
+		// Handle chat menu selection
+		selectedItem := m.chatMenu.SelectedItem()
+		if selectedItem != nil {
+			action := selectedItem.(item).action
+			switch action {
+			case "chat_processed":
+				m.navigateTo(screenChatSelectPapers)
+				m.loadPapersForChat()
+			case "chat_any":
+				m.navigateTo(screenChatSelectAnyPaper)
+				m.loadAnyPaperForChat()
+			}
+		}
+	} else if m.screen == screenChatSelectAnyPaper {
+		// Handle selection from any paper list (similar to single select)
+		selectedItem := m.chatPaperList.SelectedItem()
+		if selectedItem != nil {
+			m.selectedPaper = selectedItem.(item).action // This is the PDF path
+			m.processingForChat = true
+			m.processingMsg = "process_for_chat"
+			return m, tea.Quit
+		}
 	}
 
 	return m, nil
@@ -151,10 +180,12 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 	ui.ShowBanner()
 
 	// Initialize logger
-	if err := app.InitLogger(config); err != nil {
+	logCleanup, err := app.InitLogger(config)
+	if err != nil {
 		ui.PrintError(fmt.Sprintf("Failed to initialize logger: %v", err))
 		return err
 	}
+	defer logCleanup()
 
 	// Select processing mode
 	selectedMode, err := ui.PromptMode()
@@ -187,11 +218,14 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 		return nil
 	}
 
+	// Ask if user wants to enable RAG indexing for chat
+	enableRAG := ui.PromptEnableRAG()
+
 	// Process the paper
 	fmt.Println()
 	ui.PrintStage("Processing Paper", filepath.Base(paperPath))
 	ctx := context.Background()
-	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false); err != nil {
+	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false, enableRAG); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Processing encountered an error")
@@ -213,8 +247,9 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 	fmt.Println()
 	ui.PrintInfo("Press Enter to return to main menu...")
 
-	// Wait for user to press Enter
-	fmt.Scanln()
+	// Wait for user to press Enter (use bufio for more reliable input after progress bar)
+	reader := bufio.NewReader(os.Stdin)
+	reader.ReadString('\n')
 
 	// Return to TUI
 	return Run("config/config.yaml")
@@ -227,10 +262,12 @@ func handleBatchProcessing(config *app.Config) error {
 	ui.ShowBanner()
 
 	// Initialize logger
-	if err := app.InitLogger(config); err != nil {
+	logCleanup, err := app.InitLogger(config)
+	if err != nil {
 		ui.PrintError(fmt.Sprintf("Failed to initialize logger: %v", err))
 		return err
 	}
+	defer logCleanup()
 
 	// Select processing mode
 	selectedMode, err := ui.PromptMode()
@@ -283,7 +320,10 @@ func handleBatchProcessing(config *app.Config) error {
 	fmt.Println()
 	ui.PrintStage("Processing Papers", "Starting batch processing")
 	ctx := context.Background()
-	if err := worker.ProcessBatch(ctx, files, config, false); err != nil {
+	// Ask if user wants to enable RAG indexing for chat
+	enableRAG := ui.PromptEnableRAG()
+
+	if err := worker.ProcessBatch(ctx, files, config, false, enableRAG); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Batch processing encountered an error")
@@ -305,8 +345,9 @@ func handleBatchProcessing(config *app.Config) error {
 	fmt.Println()
 	ui.PrintInfo("Press Enter to return to main menu...")
 
-	// Wait for user to press Enter
-	fmt.Scanln()
+	// Wait for user to press Enter (use bufio for more reliable input after progress bar)
+	reader := bufio.NewReader(os.Stdin)
+	reader.ReadString('\n')
 
 	// Return to TUI
 	return Run("config/config.yaml")
@@ -319,10 +360,12 @@ func handleMultiplePapersProcessing(paperPaths []string, config *app.Config) err
 	ui.ShowBanner()
 
 	// Initialize logger
-	if err := app.InitLogger(config); err != nil {
+	logCleanup, err := app.InitLogger(config)
+	if err != nil {
 		ui.PrintError(fmt.Sprintf("Failed to initialize logger: %v", err))
 		return err
 	}
+	defer logCleanup()
 
 	// Select processing mode
 	selectedMode, err := ui.PromptMode()
@@ -363,7 +406,10 @@ func handleMultiplePapersProcessing(paperPaths []string, config *app.Config) err
 	fmt.Println()
 	ui.PrintStage("Processing Papers", "Starting batch processing")
 	ctx := context.Background()
-	if err := worker.ProcessBatch(ctx, paperPaths, config, false); err != nil {
+	// Ask if user wants to enable RAG indexing for chat
+	enableRAG := ui.PromptEnableRAG()
+
+	if err := worker.ProcessBatch(ctx, paperPaths, config, false, enableRAG); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Processing encountered an error")
@@ -385,10 +431,104 @@ func handleMultiplePapersProcessing(paperPaths []string, config *app.Config) err
 	fmt.Println()
 	ui.PrintInfo("Press Enter to return to main menu...")
 
-	// Wait for user to press Enter
-	fmt.Scanln()
+	// Wait for user to press Enter (use bufio for more reliable input after progress bar)
+	reader := bufio.NewReader(os.Stdin)
+	reader.ReadString('\n')
 
 	// Return to TUI
+	return Run("config/config.yaml")
+}
+
+// handleProcessAndChat processes a paper and immediately starts chat
+func handleProcessAndChat(paperPath string, config *app.Config) error {
+	// Clear screen and show banner
+	fmt.Print("\033[H\033[2J")
+	ui.ShowBanner()
+
+	// Initialize logger
+	logCleanup, err := app.InitLogger(config)
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Failed to initialize logger: %v", err))
+		return err
+	}
+	defer logCleanup()
+
+	// Select processing mode
+	selectedMode, err := ui.PromptMode()
+	if err != nil {
+		// User cancelled - return to TUI
+		ui.PrintWarning("Mode selection cancelled, returning to main menu...")
+		fmt.Println()
+		ui.PrintInfo("Press Enter to continue...")
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+		return Run("config/config.yaml")
+	}
+
+	// Apply mode configuration
+	applyModeConfig(config, selectedMode)
+	ui.ShowModeDetailsWithConfig(selectedMode, config)
+
+	// Check dependencies
+	ui.PrintStage("Checking Dependencies", "Verifying LaTeX installation")
+	if err := compiler.CheckDependencies(config.Latex.Engine == "latexmk", config.Latex.Compiler); err != nil {
+		ui.PrintError(fmt.Sprintf("Dependency check failed: %v", err))
+		fmt.Println("\nPlease install the required LaTeX tools:")
+		fmt.Println("  sudo apt install texlive-latex-extra latexmk")
+		return err
+	}
+	ui.PrintSuccess("All dependencies installed")
+
+	// Confirm processing
+	if !ui.ConfirmProcessing(1) {
+		ui.PrintWarning("Processing cancelled by user")
+		return Run("config/config.yaml")
+	}
+
+	// Enable RAG indexing by default for chat
+	ui.PrintInfo("📇 RAG indexing enabled - paper will be ready for chat after processing")
+
+	// Process the paper
+	fmt.Println()
+	ui.PrintStage("Processing Paper for Chat", filepath.Base(paperPath))
+	ctx := context.Background()
+	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false, true); err != nil {
+		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
+		fmt.Println()
+		ui.PrintWarning("Processing encountered an error")
+		fmt.Println()
+		ui.PrintInfo("Error logged to logs/processing.log")
+		fmt.Println()
+		ui.PrintInfo("Press Enter to return to main menu...")
+
+		// Wait for user input
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+
+		// Return to TUI
+		return Run("config/config.yaml")
+	}
+
+	// Processing successful, now start chat directly
+	fmt.Println()
+	ui.PrintSuccess("Processing complete! Starting chat...")
+	fmt.Println()
+
+	// Extract paper title from path
+	basename := filepath.Base(paperPath)
+	paperTitle := strings.TrimSuffix(basename, ".pdf")
+	paperTitle = strings.ReplaceAll(paperTitle, "_", " ")
+
+	ui.PrintInfo(fmt.Sprintf("You can now ask questions about: %s", paperTitle))
+	fmt.Println()
+	ui.PrintInfo("Press Enter to start chat...")
+
+	// Wait for user input
+	reader := bufio.NewReader(os.Stdin)
+	reader.ReadString('\n')
+
+	// TODO: Implement direct chat mode (for now, return to TUI)
+	// In the future, this could launch a CLI chat interface
 	return Run("config/config.yaml")
 }
 

@@ -7,7 +7,7 @@ plans
 /lib
 /reports
 tex_files/
-
+docs
 # Docker
 .dockerignore
 

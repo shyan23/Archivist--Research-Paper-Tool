@@ -1,0 +1,34 @@
+# Core RAG Dependencies
+chromadb==0.4.22
+sentence-transformers==2.3.1
+langchain==0.1.4
+langchain-community==0.0.16
+langchain-google-genai==0.0.5
+
+# Vector Store & Embeddings
+faiss-cpu==1.7.4
+numpy==1.24.3
+
+# PDF Processing
+PyMuPDF==1.23.8
+pypdf==3.17.4
+pdfplumber==0.10.3
+
+# Text Processing
+tiktoken==0.5.2
+unstructured==0.11.6
+
+# API & Web
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+python-multipart==0.0.6
+
+# Google AI
+google-generativeai==0.3.2
+google-ai-generativelanguage==0.4.0
+
+# Utils
+python-dotenv==1.0.0
+tqdm==4.66.1
+redis==5.0.1

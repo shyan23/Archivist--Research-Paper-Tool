@@ -1,7 +1,7 @@
 package fileutil
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// ComputeFileHash computes MD5 hash of a file
+// ComputeFileHash computes SHA-256 hash of a file
 func ComputeFileHash(filePath string) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -17,7 +17,7 @@ func ComputeFileHash(filePath string) (string, error) {
 	}
 	defer f.Close()
 
-	hasher := md5.New()
+	hasher := sha256.New()
 	if _, err := io.Copy(hasher, f); err != nil {
 		return "", fmt.Errorf("failed to compute hash: %w", err)
 	}

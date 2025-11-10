@@ -81,6 +81,35 @@ func PromptMode() (ProcessingMode, error) {
 	return ModeFast, nil
 }
 
+// PromptEnableRAG asks if user wants to enable RAG indexing
+func PromptEnableRAG() bool {
+	fmt.Println()
+	ColorBold.Printf("═══════════════════════════════════════════════════════════════\n")
+	fmt.Printf("💬  Enable Chat Feature (RAG Indexing)\n")
+	ColorBold.Printf("═══════════════════════════════════════════════════════════════\n")
+	fmt.Println()
+
+	ColorInfo.Println("Do you want to enable the chat feature for these papers?")
+	fmt.Println()
+	ColorSubtle.Println("  • Creates vector embeddings for semantic search")
+	ColorSubtle.Println("  • Enables interactive Q&A with your papers")
+	ColorSubtle.Println("  • Adds ~10-15 seconds per paper to processing time")
+	ColorSubtle.Println("  • Uses Gemini embeddings API (text-embedding-004)")
+	fmt.Println()
+
+	prompt := promptui.Select{
+		Label: "Enable RAG indexing for chat?",
+		Items: []string{"Yes - Enable chat (recommended)", "No - Skip chat indexing"},
+	}
+
+	idx, _, err := prompt.Run()
+	if err != nil {
+		return false // Default to no if user cancels
+	}
+
+	return idx == 0 // Yes = 0, No = 1
+}
+
 // ShowModeDetails displays detailed information about the selected mode
 func ShowModeDetails(mode ProcessingMode) {
 	configs := GetModeConfigs()

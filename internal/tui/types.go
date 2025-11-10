@@ -17,6 +17,10 @@ const (
 	screenSelectPaper
 	screenSelectMultiplePapers
 	screenProcessing
+	screenChatMenu
+	screenChatSelectPapers
+	screenChatSelectAnyPaper
+	screenChat
 )
 
 // Model represents the TUI application state
@@ -39,6 +43,16 @@ type Model struct {
 	err                error
 	processing         bool
 	processingMsg      string
+
+	// Chat-related fields
+	chatMenu           list.Model        // Chat submenu
+	chatPaperList      list.Model        // For selecting papers to chat about
+	chatMessages       []ChatMessage     // Chat history
+	chatInput          string            // Current input text
+	chatSessionID      string            // Current chat session ID
+	chatSelectedPapers []string          // Papers selected for chat
+	chatLoading        bool              // Is response being generated
+	processingForChat  bool              // Is processing a paper for chat
 }
 
 // Item represents a menu item
@@ -51,6 +65,13 @@ type item struct {
 func (i item) Title() string       { return i.title }
 func (i item) Description() string { return i.description }
 func (i item) FilterValue() string { return i.title }
+
+// ChatMessage represents a chat message
+type ChatMessage struct {
+	Role      string   // "user" or "assistant"
+	Content   string
+	Citations []string
+}
 
 // Custom key bindings
 type keyMap struct {

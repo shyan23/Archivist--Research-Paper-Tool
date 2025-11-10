@@ -39,6 +39,7 @@ type WorkerPool struct {
 	wg         sync.WaitGroup
 	config     *app.Config
 	cache      *cache.RedisCache
+	enableRAG  bool // Enable RAG indexing during processing
 }
 
 // NewWorkerPool creates a new worker pool
@@ -49,7 +50,13 @@ func NewWorkerPool(numWorkers int, config *app.Config, redisCache *cache.RedisCa
 		results:    make(chan *ProcessingResult, numWorkers*2),
 		config:     config,
 		cache:      redisCache,
+		enableRAG:  false, // Default off
 	}
+}
+
+// SetEnableRAG sets whether to enable RAG indexing
+func (wp *WorkerPool) SetEnableRAG(enable bool) {
+	wp.enableRAG = enable
 }
 
 // Start starts the worker pool
@@ -128,9 +135,18 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 	if latexContent == "" {
 		log.Printf("  🤖 Step 2/4: Analyzing paper with Gemini (cache miss)...")
 		log.Printf("     → Sending PDF to Gemini API for analysis and LaTeX generation...")
-		latexContent, err = analyzer.AnalyzePaper(ctx, job.FilePath)
+
+		// Enforce timeout for API call
+		apiCtx, apiCancel := context.WithTimeout(ctx, time.Duration(wp.config.Processing.TimeoutPerPaper)*time.Second)
+		defer apiCancel()
+
+		latexContent, err = analyzer.AnalyzePaper(apiCtx, job.FilePath)
 		if err != nil {
-			result.Error = fmt.Errorf("analysis failed: %w", err)
+			if apiCtx.Err() == context.DeadlineExceeded {
+				result.Error = fmt.Errorf("analysis timed out after %d seconds (increase timeout_per_paper in config)", wp.config.Processing.TimeoutPerPaper)
+			} else {
+				result.Error = fmt.Errorf("analysis failed: %w", err)
+			}
 			return result
 		}
 		log.Printf("  ✓ Analysis complete (%.2fs)", time.Since(stepStart).Seconds())
@@ -197,6 +213,16 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 		}
 	}
 
+	// Step 6: Index paper for chat feature (if enabled)
+	if wp.enableRAG {
+		indexCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+
+		if err := IndexPaperAfterProcessing(indexCtx, wp.config, paperTitle, latexContent, job.FilePath); err != nil {
+			log.Printf("  ⚠️  Indexing warning: %v", err)
+		}
+	}
+
 	result.Duration = time.Since(startTime)
 	log.Printf("  🎉 Processing complete! Total time: %.2fs", result.Duration.Seconds())
 	return result
@@ -224,7 +250,7 @@ func (wp *WorkerPool) Results() <-chan *ProcessingResult {
 }
 
 // ProcessBatch processes a batch of PDF files
-func ProcessBatch(ctx context.Context, files []string, config *app.Config, force bool) error {
+func ProcessBatch(ctx context.Context, files []string, config *app.Config, force bool, enableRAG bool) error {
 	// Initialize Redis cache if enabled
 	var redisCache *cache.RedisCache
 	var err error
@@ -278,8 +304,13 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 
 	log.Printf("Processing %d files with %d workers", len(jobsToProcess), config.Processing.MaxWorkers)
 
+	if enableRAG {
+		log.Println("💬 RAG indexing enabled - papers will be ready for chat after processing")
+	}
+
 	// Create and start worker pool
 	pool := NewWorkerPool(config.Processing.MaxWorkers, config, redisCache)
+	pool.SetEnableRAG(enableRAG) // Set RAG flag
 	pool.Start(ctx)
 
 	// Submit jobs
@@ -320,6 +351,10 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 	}
 
 	pool.Wait()
+
+	// Finish the progress bar properly
+	bar.Finish()
+	fmt.Println() // Add extra newline for spacing
 
 	// Calculate skipped files
 	skipped = totalFiles - len(jobsToProcess)

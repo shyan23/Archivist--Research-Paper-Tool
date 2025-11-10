@@ -120,7 +120,7 @@ func (m *Model) loadPapersForMultiSelection() {
 
 	delegate := createStyledDelegate()
 	m.multiPaperList = list.New(items, delegate, 0, 0)
-	m.multiPaperList.Title = fmt.Sprintf("📋 Select Papers (Space to toggle, Enter to confirm) - 0 selected", len(items))
+	m.multiPaperList.Title = fmt.Sprintf("📋 Select Papers (Space to toggle, Enter to confirm) - %d available", len(items))
 	m.multiPaperList.SetShowStatusBar(false)
 	m.multiPaperList.Styles.Title = titleStyle
 	if m.width > 0 && m.height > 0 {

@@ -22,6 +22,17 @@ func (m Model) View() string {
 		content = m.libraryList.View()
 	case screenViewProcessed:
 		content = m.processedList.View()
+	case screenChatMenu:
+		content = m.chatMenu.View()
+	case screenChatSelectPapers, screenChatSelectAnyPaper:
+		if len(m.chatPaperList.Items()) == 0 {
+			content = warningStyle.Render("\n⚠️  No processed papers found\n\n") +
+				helpStyle.Render("Process papers first before using chat\nPress ESC to go back")
+		} else {
+			content = m.chatPaperList.View() + "\n" + helpStyle.Render("Tip: Use Space to toggle selection, Enter to start chat")
+		}
+	case screenChat:
+		content = m.renderChatScreen()
 	case screenSelectPaper:
 		if len(m.singlePaperList.Items()) == 0 {
 			content = warningStyle.Render("\n⚠️  No unprocessed papers found in library\n\n") +

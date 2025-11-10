@@ -29,6 +29,11 @@ func InitialModel(configPath string) (*Model, error) {
 			action:      "view_processed",
 		},
 		item{
+			title:       "💬 Chat with Papers",
+			description: "Interactive Q&A with your research papers (RAG-powered)",
+			action:      "chat",
+		},
+		item{
 			title:       "📄 Process Single Paper",
 			description: "Select and process one paper",
 			action:      "process_single",
@@ -92,11 +97,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.singlePaperList.SetSize(w, h)
 		case screenSelectMultiplePapers:
 			m.multiPaperList.SetSize(w, h)
+		case screenChatMenu:
+			m.chatMenu.SetSize(w, h)
+		case screenChatSelectPapers, screenChatSelectAnyPaper:
+			m.chatPaperList.SetSize(w, h)
 		}
 
 		return m, nil
 
+	case ChatResponseMsg:
+		return m.handleChatResponse(msg)
+
 	case tea.KeyMsg:
+		// Handle chat input separately
+		if m.screen == screenChat {
+			return m.handleChatInput(msg)
+		}
+
 		// Handle command palette toggle (Ctrl+P)
 		if msg.String() == "ctrl+p" {
 			m.commandPalette.Toggle()
@@ -129,17 +146,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "esc", "backspace":
-			if m.screen != screenMain {
+			if m.screen != screenMain && m.screen != screenChat {
 				m.navigateBack()
 				return m, nil
+			} else if m.screen == screenChat {
+				// Handle backspace in chat
+				return m.handleChatInput(msg)
 			}
 
 		case " ": // Spacebar for multi-select
 			if m.screen == screenSelectMultiplePapers {
 				return m.handleSpacebar()
+			} else if m.screen == screenChatSelectPapers {
+				return m.handleChatSpacebar()
 			}
 
 		case "enter":
+			if m.screen == screenChatSelectPapers {
+				return m.handleChatPaperSelection()
+			}
 			return m.handleEnter()
 		}
 	}
@@ -157,6 +182,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.singlePaperList, cmd = m.singlePaperList.Update(msg)
 	case screenSelectMultiplePapers:
 		m.multiPaperList, cmd = m.multiPaperList.Update(msg)
+	case screenChatMenu:
+		m.chatMenu, cmd = m.chatMenu.Update(msg)
+	case screenChatSelectPapers, screenChatSelectAnyPaper:
+		m.chatPaperList, cmd = m.chatPaperList.Update(msg)
 	}
 
 	return m, cmd
@@ -224,6 +253,8 @@ func Run(configPath string) error {
 		switch finalM.processingMsg {
 		case "open_pdf", "open_report":
 			return handleOpenPDF(finalM.selectedPaper)
+		case "process_for_chat":
+			return handleProcessAndChat(finalM.selectedPaper, finalM.config)
 		default:
 			return handleSinglePaperProcessing(finalM.selectedPaper, finalM.config)
 		}

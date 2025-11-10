@@ -9,8 +9,10 @@ import (
 )
 
 // InitLogger initializes logging based on config
-func InitLogger(config *Config) error {
+// Returns a cleanup function that should be deferred to close log files
+func InitLogger(config *Config) (func(), error) {
 	var writers []io.Writer
+	var logFile *os.File
 
 	// Console output
 	if config.Logging.Console {
@@ -22,12 +24,13 @@ func InitLogger(config *Config) error {
 		// Ensure log directory exists
 		logDir := filepath.Dir(config.Logging.File)
 		if err := os.MkdirAll(logDir, 0755); err != nil {
-			return fmt.Errorf("failed to create log directory: %w", err)
+			return nil, fmt.Errorf("failed to create log directory: %w", err)
 		}
 
-		logFile, err := os.OpenFile(config.Logging.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		var err error
+		logFile, err = os.OpenFile(config.Logging.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			return fmt.Errorf("failed to open log file: %w", err)
+			return nil, fmt.Errorf("failed to open log file: %w", err)
 		}
 
 		writers = append(writers, logFile)
@@ -40,5 +43,12 @@ func InitLogger(config *Config) error {
 
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
-	return nil
+	// Return cleanup function
+	cleanup := func() {
+		if logFile != nil {
+			logFile.Close()
+		}
+	}
+
+	return cleanup, nil
 }

@@ -37,6 +37,8 @@ explanations of methodologies, breakthroughs, and results.`,
 		NewModelsCommand(),
 		NewCacheCommand(),
 		NewConfigureCommand(),
+		NewChatCommand(),
+		NewIndexCommand(),
 	)
 
 	return rootCmd

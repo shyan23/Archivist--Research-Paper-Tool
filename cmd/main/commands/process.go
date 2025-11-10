@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -82,10 +83,12 @@ func runProcess(cmd *cobra.Command, args []string) {
 	}
 
 	// Initialize logger
-	if err := app.InitLogger(config); err != nil {
+	logCleanup, err := app.InitLogger(config)
+	if err != nil {
 		ui.PrintError(fmt.Sprintf("Failed to initialize logger: %v", err))
 		os.Exit(1)
 	}
+	defer logCleanup()
 
 	// Select processing mode
 	var selectedMode ui.ProcessingMode
@@ -213,11 +216,14 @@ func runProcess(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	// Ask if user wants to enable RAG indexing
+	enableRAG := ui.PromptEnableRAG()
+
 	// Process files
 	fmt.Println()
 	ui.PrintStage("Processing Papers", "Starting batch processing")
 	ctx := context.Background()
-	if err := worker.ProcessBatch(ctx, files, config, force); err != nil {
+	if err := worker.ProcessBatch(ctx, files, config, force, enableRAG); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintInfo("Press Enter to continue...")
@@ -225,22 +231,16 @@ func runProcess(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// After successful processing, offer to launch TUI
+	// After successful processing, automatically return to TUI
 	fmt.Println()
 	ui.PrintSuccess("All processing complete!")
-	ui.PrintInfo("Would you like to:")
-	fmt.Println("  1. Launch TUI to view papers")
-	fmt.Println("  2. Exit")
-	fmt.Print("\nChoice (1/2): ")
+	ui.PrintInfo("Returning to homepage...")
 
-	var choice string
-	fmt.Scanln(&choice)
+	time.Sleep(2 * time.Second) // Brief pause to let user see the success message
 
-	if choice == "1" {
-		if err := tui.Run(ConfigPath); err != nil {
-			ui.PrintError(fmt.Sprintf("TUI error: %v", err))
-			os.Exit(1)
-		}
+	if err := tui.Run(ConfigPath); err != nil {
+		ui.PrintError(fmt.Sprintf("TUI error: %v", err))
+		os.Exit(1)
 	}
 }
 
