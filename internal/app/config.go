@@ -18,6 +18,8 @@ type Config struct {
 	Gemini           GeminiConfig     `mapstructure:"gemini"`
 	Latex            LatexConfig      `mapstructure:"latex"`
 	Cache            CacheConfig      `mapstructure:"cache"`
+	Graph            GraphConfig      `mapstructure:"graph"`
+	Visualization    VisualizationConfig `mapstructure:"visualization"`
 	HashAlgorithm    string           `mapstructure:"hash_algorithm"`
 	Logging          LoggingConfig    `mapstructure:"logging"`
 }
@@ -87,6 +89,60 @@ type RedisConfig struct {
 	Addr     string `mapstructure:"addr"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
+}
+
+type GraphConfig struct {
+	Enabled            bool                      `mapstructure:"enabled"`
+	Neo4j              Neo4jConfig               `mapstructure:"neo4j"`
+	AsyncBuilding      bool                      `mapstructure:"async_building"`
+	MaxGraphWorkers    int                       `mapstructure:"max_graph_workers"`
+	CitationExtraction CitationExtractionConfig  `mapstructure:"citation_extraction"`
+	Search             SearchConfig              `mapstructure:"search"`
+	Optimization       OptimizationConfig        `mapstructure:"optimization"`
+}
+
+type Neo4jConfig struct {
+	URI      string `mapstructure:"uri"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	Database string `mapstructure:"database"`
+}
+
+type CitationExtractionConfig struct {
+	Enabled              bool     `mapstructure:"enabled"`
+	PrioritizeInText     bool     `mapstructure:"prioritize_in_text"`
+	ConfidenceThreshold  float64  `mapstructure:"confidence_threshold"`
+	ImportanceFilter     []string `mapstructure:"importance_filter"`
+}
+
+type SearchConfig struct {
+	DefaultTopK     int     `mapstructure:"default_top_k"`
+	VectorWeight    float64 `mapstructure:"vector_weight"`
+	GraphWeight     float64 `mapstructure:"graph_weight"`
+	KeywordWeight   float64 `mapstructure:"keyword_weight"`
+	TraversalDepth  int     `mapstructure:"traversal_depth"`
+}
+
+type OptimizationConfig struct {
+	MaxPapersInMemory      int  `mapstructure:"max_papers_in_memory"`
+	CacheGraphLayout       bool `mapstructure:"cache_graph_layout"`
+	PrecomputeSimilarities bool `mapstructure:"precompute_similarities"`
+}
+
+type VisualizationConfig struct {
+	Terminal TerminalVisualizationConfig `mapstructure:"terminal"`
+	Web      WebVisualizationConfig      `mapstructure:"web"`
+}
+
+type TerminalVisualizationConfig struct {
+	Enabled            bool   `mapstructure:"enabled"`
+	MaxNodesDisplayed  int    `mapstructure:"max_nodes_displayed"`
+	LayoutAlgorithm    string `mapstructure:"layout_algorithm"`
+}
+
+type WebVisualizationConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+	Port    int  `mapstructure:"port"`
 }
 
 // LoadConfig loads configuration from config.yaml and .env

@@ -48,6 +48,52 @@ latex:
 
 hash_algorithm: "sha256"
 
+# Knowledge Graph settings
+graph:
+  enabled: true
+
+  # Neo4j connection
+  neo4j:
+    uri: "bolt://localhost:7687"
+    username: "neo4j"
+    password: "password"
+    database: "archivist"
+
+  # Background processing
+  async_building: true
+  max_graph_workers: 2        # Separate from paper workers
+
+  # Citation extraction
+  citation_extraction:
+    enabled: true
+    prioritize_in_text: true  # Focus on in-text citations
+    confidence_threshold: 0.7
+    importance_filter: ["high", "medium"]  # Skip "low" importance
+
+  # Search settings
+  search:
+    default_top_k: 10
+    vector_weight: 0.5         # 50% from vector similarity
+    graph_weight: 0.3          # 30% from graph traversal
+    keyword_weight: 0.2        # 20% from keyword matching
+    traversal_depth: 2         # Max hops for graph search
+
+  # Optimization for small scale (10-50 papers)
+  optimization:
+    max_papers_in_memory: 50
+    cache_graph_layout: true
+    precompute_similarities: true
+
+# Visualization settings
+visualization:
+  terminal:
+    enabled: true
+    max_nodes_displayed: 15
+    layout_algorithm: "force_directed"
+  web:
+    enabled: false  # Future enhancement
+    port: 8080
+
 # Redis-based caching for analysis results
 cache:
   enabled: true                   # ✅ Enable caching to speed up re-processing
