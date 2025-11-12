@@ -52,6 +52,16 @@ var (
 	selectedItemStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#FF06B7")).
 				Bold(true)
+
+	inputBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#7D56F4")).
+			Padding(0, 1).
+			Width(60)
+
+	successStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#04B575")).
+			Bold(true)
 )
 
 // createStyledDelegate creates a consistently styled list delegate

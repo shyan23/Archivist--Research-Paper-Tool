@@ -49,6 +49,15 @@ func (m Model) View() string {
 			listView := m.multiPaperList.View()
 			content = listView + "\n" + helpStyle.Render("Tip: Use Space to toggle selection, Enter to confirm")
 		}
+	case screenSearch:
+		content = m.renderSearchScreen()
+	case screenSearchResults:
+		if len(m.searchResultsList.Items()) == 0 {
+			content = warningStyle.Render("\n⚠️  No search results found\n\n") +
+				helpStyle.Render("Press ESC to go back and try a different query")
+		} else {
+			content = m.searchResultsList.View()
+		}
 	}
 
 	// Footer with help (add Ctrl+P hint)

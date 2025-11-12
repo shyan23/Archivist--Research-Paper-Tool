@@ -19,6 +19,11 @@ func InitialModel(configPath string) (*Model, error) {
 	// Create main menu items
 	items := []list.Item{
 		item{
+			title:       "🔍 Search Papers",
+			description: "Search for research papers from arXiv, OpenReview, and ACL",
+			action:      "search_papers",
+		},
+		item{
 			title:       "📚 View All Papers in Library",
 			description: "Browse all PDF files in the lib folder",
 			action:      "view_library",
@@ -101,6 +106,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chatMenu.SetSize(w, h)
 		case screenChatSelectPapers, screenChatSelectAnyPaper:
 			m.chatPaperList.SetSize(w, h)
+		case screenSearchResults:
+			m.searchResultsList.SetSize(w, h)
 		}
 
 		return m, nil
@@ -109,6 +116,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleChatResponse(msg)
 
 	case tea.KeyMsg:
+		// Handle search input separately
+		if m.screen == screenSearch {
+			return m.handleSearchInput(msg)
+		}
+
 		// Handle chat input separately
 		if m.screen == screenChat {
 			return m.handleChatInput(msg)
@@ -186,6 +198,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chatMenu, cmd = m.chatMenu.Update(msg)
 	case screenChatSelectPapers, screenChatSelectAnyPaper:
 		m.chatPaperList, cmd = m.chatPaperList.Update(msg)
+	case screenSearchResults:
+		m.searchResultsList, cmd = m.searchResultsList.Update(msg)
 	}
 
 	return m, cmd
@@ -194,6 +208,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // executeCommand executes a command from the command palette
 func (m Model) executeCommand(action string) (tea.Model, tea.Cmd) {
 	switch action {
+	case "search_papers":
+		m.navigateTo(screenSearch)
+		m.searchInput = ""
+		m.searchLoading = false
 	case "view_library":
 		m.navigateTo(screenViewLibrary)
 		m.loadLibraryPapers()

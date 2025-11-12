@@ -21,6 +21,8 @@ const (
 	screenChatSelectPapers
 	screenChatSelectAnyPaper
 	screenChat
+	screenSearch
+	screenSearchResults
 )
 
 // Model represents the TUI application state
@@ -53,6 +55,12 @@ type Model struct {
 	chatSelectedPapers []string          // Papers selected for chat
 	chatLoading        bool              // Is response being generated
 	processingForChat  bool              // Is processing a paper for chat
+
+	// Search-related fields
+	searchInput        string            // Search query input
+	searchResultsList  list.Model        // List of search results
+	searchLoading      bool              // Is search in progress
+	searchError        string            // Error message from search
 }
 
 // Item represents a menu item

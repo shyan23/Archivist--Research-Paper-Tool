@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -50,6 +51,11 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 		action := selectedItem.(item).action
 
 		switch action {
+		case "search_papers":
+			m.navigateTo(screenSearch)
+			m.searchInput = ""
+			m.searchLoading = false
+			m.searchError = ""
 		case "view_library":
 			m.navigateTo(screenViewLibrary)
 			m.loadLibraryPapers()
@@ -137,6 +143,9 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 			m.processingMsg = "process_for_chat"
 			return m, tea.Quit
 		}
+	} else if m.screen == screenSearchResults {
+		// Handle search result selection (download paper)
+		return m.handleSearchResultSelection()
 	}
 
 	return m, nil
@@ -166,8 +175,24 @@ func handleOpenPDF(pdfPath string) error {
 
 	ui.PrintSuccess("PDF opened in default viewer")
 	fmt.Println()
-	ui.PrintInfo("Press Enter to return to main menu...")
-	fmt.Scanln()
+	ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
+
+	// Wait for user input with timeout
+	done := make(chan bool, 1)
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+		done <- true
+	}()
+
+	// Wait for Enter or timeout
+	select {
+	case <-done:
+		// User pressed Enter
+	case <-time.After(3 * time.Second):
+		// Timeout after 3 seconds
+		fmt.Println("\nReturning to main menu...")
+	}
 
 	// Restart TUI
 	return Run("config/config.yaml")
@@ -232,10 +257,24 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 		fmt.Println()
 		ui.PrintInfo("Error logged to .metadata/processing.log")
 		fmt.Println()
-		ui.PrintInfo("Press Enter to return to main menu...")
+		ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-		// Wait for user input
-		fmt.Scanln()
+		// Wait for user input with timeout
+		done := make(chan bool, 1)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
+			reader.ReadString('\n')
+			done <- true
+		}()
+
+		// Wait for Enter or timeout
+		select {
+		case <-done:
+			// User pressed Enter
+		case <-time.After(3 * time.Second):
+			// Timeout after 3 seconds
+			fmt.Println("\nReturning to main menu...")
+		}
 
 		// Return to TUI
 		return Run("config/config.yaml")
@@ -245,11 +284,24 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 	fmt.Println()
 	ui.PrintSuccess("Processing complete!")
 	fmt.Println()
-	ui.PrintInfo("Press Enter to return to main menu...")
+	ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-	// Wait for user to press Enter (use bufio for more reliable input after progress bar)
-	reader := bufio.NewReader(os.Stdin)
-	reader.ReadString('\n')
+	// Wait for user input with timeout
+	done := make(chan bool, 1)
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+		done <- true
+	}()
+
+	// Wait for Enter or timeout
+	select {
+	case <-done:
+		// User pressed Enter
+	case <-time.After(3 * time.Second):
+		// Timeout after 3 seconds
+		fmt.Println("\nReturning to main menu...")
+	}
 
 	// Return to TUI
 	return Run("config/config.yaml")
@@ -330,10 +382,24 @@ func handleBatchProcessing(config *app.Config) error {
 		fmt.Println()
 		ui.PrintInfo("Error logged to .metadata/processing.log")
 		fmt.Println()
-		ui.PrintInfo("Press Enter to return to main menu...")
+		ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-		// Wait for user input
-		fmt.Scanln()
+		// Wait for user input with timeout
+		done := make(chan bool, 1)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
+			reader.ReadString('\n')
+			done <- true
+		}()
+
+		// Wait for Enter or timeout
+		select {
+		case <-done:
+			// User pressed Enter
+		case <-time.After(3 * time.Second):
+			// Timeout after 3 seconds
+			fmt.Println("\nReturning to main menu...")
+		}
 
 		// Return to TUI
 		return Run("config/config.yaml")
@@ -343,11 +409,24 @@ func handleBatchProcessing(config *app.Config) error {
 	fmt.Println()
 	ui.PrintSuccess("Batch processing complete!")
 	fmt.Println()
-	ui.PrintInfo("Press Enter to return to main menu...")
+	ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-	// Wait for user to press Enter (use bufio for more reliable input after progress bar)
-	reader := bufio.NewReader(os.Stdin)
-	reader.ReadString('\n')
+	// Wait for user input with timeout
+	done := make(chan bool, 1)
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+		done <- true
+	}()
+
+	// Wait for Enter or timeout
+	select {
+	case <-done:
+		// User pressed Enter
+	case <-time.After(3 * time.Second):
+		// Timeout after 3 seconds
+		fmt.Println("\nReturning to main menu...")
+	}
 
 	// Return to TUI
 	return Run("config/config.yaml")
@@ -416,10 +495,24 @@ func handleMultiplePapersProcessing(paperPaths []string, config *app.Config) err
 		fmt.Println()
 		ui.PrintInfo("Error logged to .metadata/processing.log")
 		fmt.Println()
-		ui.PrintInfo("Press Enter to return to main menu...")
+		ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-		// Wait for user input
-		fmt.Scanln()
+		// Wait for user input with timeout
+		done := make(chan bool, 1)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
+			reader.ReadString('\n')
+			done <- true
+		}()
+
+		// Wait for Enter or timeout
+		select {
+		case <-done:
+			// User pressed Enter
+		case <-time.After(3 * time.Second):
+			// Timeout after 3 seconds
+			fmt.Println("\nReturning to main menu...")
+		}
 
 		// Return to TUI
 		return Run("config/config.yaml")
@@ -429,11 +522,24 @@ func handleMultiplePapersProcessing(paperPaths []string, config *app.Config) err
 	fmt.Println()
 	ui.PrintSuccess("Processing complete!")
 	fmt.Println()
-	ui.PrintInfo("Press Enter to return to main menu...")
+	ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-	// Wait for user to press Enter (use bufio for more reliable input after progress bar)
-	reader := bufio.NewReader(os.Stdin)
-	reader.ReadString('\n')
+	// Wait for user input with timeout
+	done := make(chan bool, 1)
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+		done <- true
+	}()
+
+	// Wait for Enter or timeout
+	select {
+	case <-done:
+		// User pressed Enter
+	case <-time.After(3 * time.Second):
+		// Timeout after 3 seconds
+		fmt.Println("\nReturning to main menu...")
+	}
 
 	// Return to TUI
 	return Run("config/config.yaml")
@@ -546,4 +652,37 @@ func applyModeConfig(config *app.Config, mode ui.ProcessingMode) {
 
 	// Use fast model for methodology analysis (only one mode now)
 	config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "models/gemini-2.0-flash-exp"
+}
+
+// handleSearchInput handles text input for search query
+func (m Model) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		// Go back to main menu
+		m.navigateBack()
+		return m, nil
+
+	case "enter":
+		// Trigger search
+		if m.searchInput == "" {
+			return m, nil
+		}
+		// Call the search handler
+		return m.handleSearchEnter()
+
+	case "backspace":
+		// Delete last character
+		if len(m.searchInput) > 0 {
+			m.searchInput = m.searchInput[:len(m.searchInput)-1]
+		}
+		return m, nil
+
+	default:
+		// Add character to input (only printable characters)
+		if len(msg.Runes) == 1 {
+			m.searchInput += string(msg.Runes[0])
+		}
+	}
+
+	return m, nil
 }
