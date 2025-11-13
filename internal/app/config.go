@@ -18,6 +18,7 @@ type Config struct {
 	Gemini           GeminiConfig     `mapstructure:"gemini"`
 	Latex            LatexConfig      `mapstructure:"latex"`
 	Cache            CacheConfig      `mapstructure:"cache"`
+	FAISS            FAISSConfig      `mapstructure:"faiss"`
 	Graph            GraphConfig      `mapstructure:"graph"`
 	Visualization    VisualizationConfig `mapstructure:"visualization"`
 	HashAlgorithm    string           `mapstructure:"hash_algorithm"`
@@ -89,6 +90,10 @@ type RedisConfig struct {
 	Addr     string `mapstructure:"addr"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
+}
+
+type FAISSConfig struct {
+	IndexDir string `mapstructure:"index_dir"`
 }
 
 type GraphConfig struct {

@@ -99,3 +99,13 @@ type GraphStats struct {
 	SimilarityCount int
 	LastUpdated     time.Time
 }
+
+// EnhancedGraphStats includes vector store statistics
+type EnhancedGraphStats struct {
+	PaperCount      int
+	ConceptCount    int
+	CitationCount   int
+	SimilarityCount int
+	VectorCount     int       // Number of embedded chunks
+	LastUpdated     time.Time
+}

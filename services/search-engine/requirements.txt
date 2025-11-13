@@ -9,6 +9,9 @@ python-multipart==0.0.20
 aiohttp==3.11.11
 aiofiles==24.1.0
 
+# Redis for caching
+redis==5.0.1
+
 # Fuzzy string matching
 rapidfuzz==3.10.1
 

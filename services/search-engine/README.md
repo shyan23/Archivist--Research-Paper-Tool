@@ -29,9 +29,66 @@ services/search-engine/
 └── README.md
 ```
 
-## Installation
+## Installation & Running
 
-### 1. Create a virtual environment
+### Option 1: Docker (Recommended)
+
+The easiest way to run the search engine is using Docker:
+
+#### Quick Start
+
+```bash
+cd services/search-engine
+
+# Copy the environment template
+cp .env.example .env
+
+# Edit .env and add your Gemini API key
+# GEMINI_API_KEY=your_key_here
+
+# Build and run with docker-compose
+docker-compose up -d
+
+# Check service health
+curl http://localhost:8000/health
+```
+
+#### Docker Commands
+
+```bash
+# Start the service
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the service
+docker-compose down
+
+# Rebuild after code changes
+docker-compose up -d --build
+
+# Stop and remove volumes (clears vector store data)
+docker-compose down -v
+```
+
+The service will be available at:
+- API: `http://localhost:8000`
+- Interactive docs: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+#### Docker Features
+
+- **Automatic restart**: Service restarts on failure
+- **Health checks**: Built-in health monitoring
+- **Data persistence**: Vector store data persisted in `./data` directory
+- **Easy updates**: Simple rebuild and restart process
+
+### Option 2: Manual Installation (Development)
+
+For local development without Docker:
+
+#### 1. Create a virtual environment
 
 ```bash
 cd services/search-engine
@@ -39,21 +96,28 @@ python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-### 2. Install dependencies
+#### 2. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Running the Service
+#### 3. Set environment variables
 
-### Development mode (with auto-reload)
+```bash
+# Set your Gemini API key
+export GEMINI_API_KEY=your_key_here
+```
+
+#### 4. Run the service
+
+**Development mode (with auto-reload):**
 
 ```bash
 python run.py
 ```
 
-### Production mode
+**Production mode:**
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -287,19 +351,36 @@ pytest tests/
 
 ## Deployment
 
-### Docker (TODO)
+### Docker Deployment
 
-```dockerfile
-FROM python:3.11-slim
+The service includes production-ready Docker configuration:
 
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+**Dockerfile highlights:**
+- Multi-stage build for smaller image size
+- Python 3.10 slim base image
+- Health check configuration
+- Data persistence for vector store
+- Non-root user execution
 
-COPY app/ ./app/
-COPY run.py .
+**Docker Compose features:**
+- Automatic restarts on failure
+- Volume mounting for data persistence
+- Environment variable configuration
+- Network isolation
+- Health monitoring
 
-CMD ["python", "run.py"]
+To deploy in production:
+
+```bash
+# Use production environment file
+cp .env.example .env.production
+# Edit with production settings
+
+# Run with production config
+docker-compose -f docker-compose.yml --env-file .env.production up -d
+
+# Monitor logs
+docker-compose logs -f --tail=100
 ```
 
 ### systemd service (Linux)

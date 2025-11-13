@@ -31,3 +31,6 @@ main
 
 # Qdrant database
 services/search-engine/data/qdrant/
+/logs
+
+archivist

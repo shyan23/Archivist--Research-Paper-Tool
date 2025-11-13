@@ -21,6 +21,7 @@ from .models import (
 from .providers import ArxivProvider, OpenReviewProvider, ACLProvider
 from .hybrid_search import get_search_orchestrator
 from .vector_store import get_vector_store
+from .cache import get_cache
 
 # Create FastAPI app
 app = FastAPI(
@@ -84,19 +85,53 @@ async def search_papers(query: SearchQuery):
         - Automatic abbreviation expansion (CNN, BERT, etc.)
         - Fuzzy string matching for typo tolerance
         - Relevance-based ranking
+        - Redis caching to reduce API costs
     """
     try:
+        # Get cache instance
+        cache = get_cache()
+
+        # Check if results are cached
+        sources = query.sources if query.sources else ["arxiv"]
+        cached_results = await cache.get_cached_results(
+            query=query.query,
+            sources=sources,
+            max_results=query.max_results
+        )
+
+        if cached_results:
+            print(f"Cache hit for query: {query.query}")
+            return SearchResponse(
+                query=query.query,
+                total=len(cached_results),
+                results=cached_results,
+                sources_searched=["arXiv"],
+                cached=True
+            )
+
+        # Cache miss - perform actual search
+        print(f"Cache miss for query: {query.query}")
+
         # Get hybrid search orchestrator
         orchestrator = get_search_orchestrator()
 
         # Perform search
         results = await orchestrator.search(query)
 
+        # Cache the results for future requests
+        await cache.cache_results(
+            query=query.query,
+            sources=sources,
+            max_results=query.max_results,
+            results=results
+        )
+
         return SearchResponse(
             query=query.query,
             total=len(results),
             results=results,
-            sources_searched=["arXiv"]
+            sources_searched=["arXiv"],
+            cached=False
         )
 
     except Exception as e:
@@ -370,6 +405,45 @@ async def clear_vector_store():
         raise HTTPException(
             status_code=500,
             detail=f"Error clearing vector store: {str(e)}"
+        )
+
+
+@app.get("/api/cache/stats")
+async def get_cache_stats():
+    """Get cache statistics including memory usage and cached queries count."""
+    try:
+        cache = get_cache()
+        stats = await cache.get_cache_stats()
+        return stats
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting cache stats: {str(e)}"
+        )
+
+
+@app.delete("/api/cache/clear")
+async def clear_cache():
+    """Clear all cached search results."""
+    try:
+        cache = get_cache()
+        success = await cache.clear_all_cache()
+
+        if success:
+            return {
+                "success": True,
+                "message": "Cache cleared successfully"
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to clear cache"
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error clearing cache: {str(e)}"
         )
 
 

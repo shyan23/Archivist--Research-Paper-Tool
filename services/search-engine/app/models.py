@@ -51,6 +51,7 @@ class SearchResponse(BaseModel):
     total: int = Field(..., description="Total number of results")
     results: List[SearchResult] = Field(..., description="List of search results")
     sources_searched: List[str] = Field(..., description="List of sources that were searched")
+    cached: bool = Field(default=False, description="Whether results were retrieved from cache")
 
 
 class DownloadRequest(BaseModel):

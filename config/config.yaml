@@ -104,6 +104,41 @@ cache:
     password: ""                  # Redis password (empty for no auth)
     db: 0                         # Redis database number
 
+# Qdrant vector database (replaces FAISS)
+qdrant:
+  host: "localhost"
+  port: 6333                       # Default Qdrant port
+  grpc_port: 6334                  # gRPC port for faster ops
+  api_key: ""                      # Optional API key for Qdrant Cloud
+  collection_name: "archivist_papers"
+  use_grpc: true                   # Use gRPC for better performance
+
+  # Vector configuration
+  vector:
+    size: 768                      # Gemini text-embedding-004 dimensions
+    distance: "Cosine"             # Cosine, Euclid, or Dot
+    on_disk: false                 # Keep in memory for small scale (10-100 papers)
+
+  # Chunking strategy
+  chunking:
+    enabled: true
+    chunk_size: 512                # Tokens per chunk
+    chunk_overlap: 50              # Overlap between chunks
+    strategy: "semantic"           # "semantic" or "fixed"
+
+  # Embedding settings
+  embedding:
+    model: "text-embedding-004"    # Gemini embedding model
+    batch_size: 10                 # Batch embeddings for efficiency
+    cache_embeddings: true         # Cache in Redis
+
+  # Search configuration
+  search:
+    default_limit: 20
+    score_threshold: 0.7           # Minimum similarity score
+    with_payload: true             # Include metadata in results
+    with_vector: false             # Don't return vectors (save bandwidth)
+
 # Logging and monitoring
 logging:
   level: "info"

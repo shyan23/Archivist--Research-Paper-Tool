@@ -6,6 +6,7 @@ import (
 	"archivist/internal/cache"
 	"archivist/internal/compiler"
 	"archivist/internal/generator"
+	"archivist/internal/graph"
 	"archivist/internal/ui"
 	"archivist/pkg/fileutil"
 	"context"
@@ -33,24 +34,36 @@ type ProcessingResult struct {
 }
 
 type WorkerPool struct {
-	numWorkers int
-	jobs       chan *ProcessingJob
-	results    chan *ProcessingResult
-	wg         sync.WaitGroup
-	config     *app.Config
-	cache      *cache.RedisCache
-	enableRAG  bool // Enable RAG indexing during processing
+	numWorkers     int
+	jobs           chan *ProcessingJob
+	results        chan *ProcessingResult
+	wg             sync.WaitGroup
+	config         *app.Config
+	cache          *cache.RedisCache
+	kafkaProducer  *graph.KafkaProducer
+	enableRAG      bool // Enable RAG indexing during processing
 }
 
 // NewWorkerPool creates a new worker pool
 func NewWorkerPool(numWorkers int, config *app.Config, redisCache *cache.RedisCache) *WorkerPool {
+	// Initialize Kafka producer if graph is enabled
+	var kafkaProducer *graph.KafkaProducer
+	if config.Graph.Enabled {
+		kafkaProducer = graph.NewKafkaProducer(
+			[]string{"localhost:9092"}, // Kafka broker
+			"paper.processed",           // Topic
+			true,                        // Enabled
+		)
+	}
+
 	return &WorkerPool{
-		numWorkers: numWorkers,
-		jobs:       make(chan *ProcessingJob, numWorkers*2),
-		results:    make(chan *ProcessingResult, numWorkers*2),
-		config:     config,
-		cache:      redisCache,
-		enableRAG:  false, // Default off
+		numWorkers:    numWorkers,
+		jobs:          make(chan *ProcessingJob, numWorkers*2),
+		results:       make(chan *ProcessingResult, numWorkers*2),
+		config:        config,
+		cache:         redisCache,
+		kafkaProducer: kafkaProducer,
+		enableRAG:     false, // Default off
 	}
 }
 
@@ -223,6 +236,14 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 		}
 	}
 
+	// Step 7: Publish to Kafka for graph building (non-blocking, async)
+	if wp.kafkaProducer != nil {
+		log.Printf("  📡 Publishing to Kafka for graph building...")
+		if err := wp.kafkaProducer.PublishPaperProcessed(ctx, paperTitle, latexContent, job.FilePath); err != nil {
+			log.Printf("  ⚠️  Kafka publish warning: %v", err)
+		}
+	}
+
 	result.Duration = time.Since(startTime)
 	log.Printf("  🎉 Processing complete! Total time: %.2fs", result.Duration.Seconds())
 	return result
@@ -272,6 +293,12 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 			stats, _ := redisCache.GetStats(ctx)
 			log.Printf("✓ Cache ready (%d entries, TTL: %d hours)", stats, config.Cache.TTL)
 		}
+	}
+
+	// Show graph integration status
+	if config.Graph.Enabled {
+		log.Println("📊 Knowledge graph integration enabled")
+		log.Println("   → Papers will be added to Neo4j graph via Kafka")
 	}
 
 	// Queue files for processing
@@ -362,6 +389,14 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 	// Show summary
 	totalTime := time.Since(startTime)
 	ui.PrintSummary(successful, failed, skipped, totalTime)
+
+	// Close Kafka producer
+	if pool.kafkaProducer != nil {
+		log.Println("📊 Closing Kafka producer...")
+		if err := pool.kafkaProducer.Close(); err != nil {
+			log.Printf("⚠️  Warning: Failed to close Kafka producer: %v", err)
+		}
+	}
 
 	// Return error if any papers failed
 	if failed > 0 {

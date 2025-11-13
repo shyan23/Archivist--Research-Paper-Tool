@@ -19,10 +19,32 @@ fi
 
 echo -e "${GREEN}✓${NC} Docker is running"
 
-# 1. Start Neo4j and Redis services
+# 1. Check if Redis is already running
 echo ""
-echo "📦 Starting Neo4j and Redis services..."
-docker-compose up -d neo4j redis
+echo "🔍 Checking Redis status..."
+
+# Check if system Redis is running
+if pgrep -x redis-server > /dev/null; then
+    echo -e "${YELLOW}⚠️  System Redis is running on port 6379${NC}"
+    echo -e "${GREEN}✓${NC} Using system Redis (no Docker container needed)"
+    USING_SYSTEM_REDIS=true
+elif docker ps --format '{{.Names}}' | grep -q "archivist-redis"; then
+    echo -e "${GREEN}✓${NC} Docker Redis is already running"
+    USING_SYSTEM_REDIS=false
+elif docker ps -a --format '{{.Names}}' | grep -q "archivist-redis"; then
+    echo "📦 Starting existing Redis container..."
+    docker start archivist-redis
+    USING_SYSTEM_REDIS=false
+else
+    echo "📦 Creating and starting Redis..."
+    docker-compose up -d redis
+    USING_SYSTEM_REDIS=false
+fi
+
+# 2. Start Neo4j service
+echo ""
+echo "📦 Starting Neo4j..."
+docker-compose up -d neo4j
 
 # 2. Wait for Neo4j to be ready
 echo ""
@@ -50,18 +72,29 @@ done
 echo ""
 
 # 3. Wait for Redis to be ready
-echo "⏳ Waiting for Redis to be ready..."
+echo "⏳ Checking Redis connection..."
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if docker exec archivist-redis redis-cli ping > /dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} Redis is ready!"
-        break
+    # Test system Redis or Docker Redis
+    if [ "$USING_SYSTEM_REDIS" = true ]; then
+        if redis-cli ping > /dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} Redis is ready!"
+            break
+        fi
+    else
+        if docker exec archivist-redis redis-cli ping > /dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} Redis is ready!"
+            break
+        fi
     fi
 
     RETRY_COUNT=$((RETRY_COUNT + 1))
     if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-        echo -e "${RED}❌ Redis failed to start after ${MAX_RETRIES} attempts${NC}"
+        echo -e "${RED}❌ Redis is not responding after ${MAX_RETRIES} attempts${NC}"
+        if [ "$USING_SYSTEM_REDIS" = false ]; then
+            echo "Check logs with: docker logs archivist-redis"
+        fi
         exit 1
     fi
 
