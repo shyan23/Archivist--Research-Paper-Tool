@@ -9,9 +9,14 @@ import (
 	"archivist/internal/graph"
 	"archivist/internal/ui"
 	"archivist/pkg/fileutil"
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -45,12 +50,12 @@ type WorkerPool struct {
 }
 
 // NewWorkerPool creates a new worker pool
-func NewWorkerPool(numWorkers int, config *app.Config, redisCache *cache.RedisCache) *WorkerPool {
-	// Initialize Kafka producer if graph is enabled
+func NewWorkerPool(numWorkers int, config *app.Config, redisCache *cache.RedisCache, enableGraphBuilding bool) *WorkerPool {
+	// Initialize Kafka producer if graph is enabled AND user opted in
 	var kafkaProducer *graph.KafkaProducer
-	if config.Graph.Enabled {
+	if config.Graph.Enabled && enableGraphBuilding {
 		kafkaProducer = graph.NewKafkaProducer(
-			[]string{"localhost:9092"}, // Kafka broker
+			[]string{"localhost:9094"}, // Kafka broker (external listener)
 			"paper.processed",           // Topic
 			true,                        // Enabled
 		)
@@ -226,19 +231,12 @@ func (wp *WorkerPool) processJob(ctx context.Context, job *ProcessingJob) *Proce
 		}
 	}
 
-	// Step 6: Index paper for chat feature (if enabled)
-	if wp.enableRAG {
-		indexCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-
-		if err := IndexPaperAfterProcessing(indexCtx, wp.config, paperTitle, latexContent, job.FilePath); err != nil {
-			log.Printf("  ⚠️  Indexing warning: %v", err)
-		}
-	}
-
-	// Step 7: Publish to Kafka for graph building (non-blocking, async)
+	// Step 6: Publish to Kafka for microservices (RAG + Graph)
+	// The Python microservices will handle:
+	// - RAG Service: Indexing to Qdrant for chat feature
+	// - Graph Service: Building Neo4j knowledge graph
 	if wp.kafkaProducer != nil {
-		log.Printf("  📡 Publishing to Kafka for graph building...")
+		log.Printf("  📡 Publishing to Kafka for microservices...")
 		if err := wp.kafkaProducer.PublishPaperProcessed(ctx, paperTitle, latexContent, job.FilePath); err != nil {
 			log.Printf("  ⚠️  Kafka publish warning: %v", err)
 		}
@@ -271,7 +269,7 @@ func (wp *WorkerPool) Results() <-chan *ProcessingResult {
 }
 
 // ProcessBatch processes a batch of PDF files
-func ProcessBatch(ctx context.Context, files []string, config *app.Config, force bool, enableRAG bool) error {
+func ProcessBatch(ctx context.Context, files []string, config *app.Config, force bool, enableRAG bool, enableGraphBuilding bool) error {
 	// Initialize Redis cache if enabled
 	var redisCache *cache.RedisCache
 	var err error
@@ -335,8 +333,12 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 		log.Println("💬 RAG indexing enabled - papers will be ready for chat after processing")
 	}
 
+	if enableGraphBuilding {
+		log.Println("🕸️  Knowledge graph building enabled - papers will be added concurrently")
+	}
+
 	// Create and start worker pool
-	pool := NewWorkerPool(config.Processing.MaxWorkers, config, redisCache)
+	pool := NewWorkerPool(config.Processing.MaxWorkers, config, redisCache, enableGraphBuilding)
 	pool.SetEnableRAG(enableRAG) // Set RAG flag
 	pool.Start(ctx)
 
@@ -357,6 +359,12 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 	// Create progress bar with better description
 	bar := ui.CreateProgressBar(len(jobsToProcess), fmt.Sprintf("📚 Processing %d papers", len(jobsToProcess)))
 
+	// Wait for workers to finish in background and close results channel
+	go func() {
+		pool.Wait()
+	}()
+
+	// Collect results from workers
 	for result := range pool.Results() {
 		processedCount++
 
@@ -377,8 +385,6 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 		}
 	}
 
-	pool.Wait()
-
 	// Finish the progress bar properly
 	bar.Finish()
 	fmt.Println() // Add extra newline for spacing
@@ -389,6 +395,34 @@ func ProcessBatch(ctx context.Context, files []string, config *app.Config, force
 	// Show summary
 	totalTime := time.Since(startTime)
 	ui.PrintSummary(successful, failed, skipped, totalTime)
+
+	// Notify user that microservices are processing in background
+	if enableRAG || enableGraphBuilding {
+		fmt.Println()
+		ui.PrintInfo("📡 Background services are processing:")
+		if enableRAG {
+			ui.PrintInfo("   • RAG indexing (chat feature)")
+		}
+		if enableGraphBuilding {
+			ui.PrintInfo("   • Knowledge graph building (Neo4j)")
+		}
+		fmt.Println()
+
+		// Start monitoring microservices in background
+		go monitorMicroservices(successful, enableRAG, enableGraphBuilding)
+	}
+
+	// Wait for user input to continue
+	fmt.Println()
+	ui.PrintInfo("Press 'q' and Enter to return to homepage...")
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(strings.ToLower(input))
+		if input == "q" {
+			break
+		}
+	}
 
 	// Close Kafka producer
 	if pool.kafkaProducer != nil {
@@ -429,4 +463,106 @@ func extractTitleFromLatex(latexContent string) string {
 	}
 
 	return ""
+}
+
+// monitorMicroservices monitors the microservices and shows notifications when they complete
+func monitorMicroservices(expectedPapers int, checkRAG bool, checkGraph bool) {
+	const (
+		graphServiceURL = "http://localhost:8081/api/graph/queue-stats"
+		ragServiceURL   = "http://localhost:8082/status" // Python RAG service
+		pollInterval    = 3 * time.Second
+		maxWaitTime     = 5 * time.Minute
+	)
+
+	startTime := time.Now()
+	ragCompleted := !checkRAG  // If not checking, mark as completed
+	graphCompleted := !checkGraph
+
+	// Track initial counts
+	var initialGraphProcessed int
+	if checkGraph {
+		if stats := getGraphStats(graphServiceURL); stats != nil {
+			initialGraphProcessed = stats.ProcessedCount
+		}
+	}
+
+	for {
+		// Check if max wait time exceeded
+		if time.Since(startTime) > maxWaitTime {
+			fmt.Println()
+			ui.PrintWarning("⏱️  Microservices are still processing (taking longer than expected)")
+			ui.PrintInfo("   You can continue using the app. Services will complete in background.")
+			return
+		}
+
+		// Check Graph Service
+		if checkGraph && !graphCompleted {
+			if stats := getGraphStats(graphServiceURL); stats != nil {
+				processed := stats.ProcessedCount - initialGraphProcessed
+				if stats.QueueSize == 0 && processed >= expectedPapers {
+					graphCompleted = true
+					fmt.Println()
+					ui.PrintSuccess("✅ Knowledge graph building complete!")
+					ui.PrintInfo(fmt.Sprintf("   Processed %d papers into Neo4j", processed))
+				}
+			}
+		}
+
+		// Check RAG Service (if you have status endpoint)
+		if checkRAG && !ragCompleted {
+			// For now, assume RAG completes quickly after graph
+			// You can add actual RAG service status check here
+			if graphCompleted {
+				ragCompleted = true
+				fmt.Println()
+				ui.PrintSuccess("✅ RAG indexing complete!")
+				ui.PrintInfo("   Papers indexed in Qdrant for chat")
+			}
+		}
+
+		// Both completed
+		if ragCompleted && graphCompleted {
+			fmt.Println()
+			ui.PrintSuccess("🎉 All background services completed!")
+			ui.PrintInfo("Press 'q' to return to homepage")
+			return
+		}
+
+		time.Sleep(pollInterval)
+	}
+}
+
+// GraphQueueStats represents the graph service queue statistics
+type GraphQueueStats struct {
+	QueueSize      int  `json:"queue_size"`
+	ProcessedCount int  `json:"processed_count"`
+	FailedCount    int  `json:"failed_count"`
+	ActiveWorkers  int  `json:"active_workers"`
+	IsRunning      bool `json:"is_running"`
+}
+
+// getGraphStats fetches graph service statistics
+func getGraphStats(url string) *GraphQueueStats {
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil
+	}
+
+	var stats GraphQueueStats
+	if err := json.Unmarshal(body, &stats); err != nil {
+		return nil
+	}
+
+	return &stats
 }

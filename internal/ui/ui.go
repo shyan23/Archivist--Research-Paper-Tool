@@ -110,6 +110,36 @@ func PromptEnableRAG() bool {
 	return idx == 0 // Yes = 0, No = 1
 }
 
+// PromptEnableGraphBuilding asks user if they want to enable concurrent graph building
+func PromptEnableGraphBuilding() bool {
+	fmt.Println()
+	ColorBold.Printf("═══════════════════════════════════════════════════════════════\n")
+	fmt.Printf("🕸️  Enable Knowledge Graph Building\n")
+	ColorBold.Printf("═══════════════════════════════════════════════════════════════\n")
+	fmt.Println()
+
+	ColorInfo.Println("Do you want to build the knowledge graph while processing?")
+	fmt.Println()
+	ColorSubtle.Println("  • Extracts citations and builds paper relationships")
+	ColorSubtle.Println("  • Creates concept nodes and similarity edges")
+	ColorSubtle.Println("  • Runs concurrently in background (won't slow down processing)")
+	ColorSubtle.Println("  • Requires Neo4j, Kafka, and Graph Service to be running")
+	ColorSubtle.Println("  • Run 'scripts/setup_graph.sh' first if not started")
+	fmt.Println()
+
+	prompt := promptui.Select{
+		Label: "Enable concurrent graph building?",
+		Items: []string{"Yes - Build knowledge graph (recommended)", "No - Skip graph building"},
+	}
+
+	idx, _, err := prompt.Run()
+	if err != nil {
+		return false // Default to no if user cancels
+	}
+
+	return idx == 0 // Yes = 0, No = 1
+}
+
 // ShowModeDetails displays detailed information about the selected mode
 func ShowModeDetails(mode ProcessingMode) {
 	configs := GetModeConfigs()

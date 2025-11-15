@@ -30,26 +30,41 @@ class GraphKafkaConsumer:
         self.is_running = False
 
     async def start(self):
-        """Start Kafka consumer"""
-        logger.info(f"🔌 Connecting to Kafka at {self.bootstrap_servers}...")
+        """Start Kafka consumer with retry logic"""
+        max_retries = 10
+        retry_delay = 3  # seconds
 
-        self.consumer = AIOKafkaConsumer(
-            self.topic,
-            bootstrap_servers=self.bootstrap_servers,
-            group_id=self.group_id,
-            value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-            auto_offset_reset='earliest',  # Start from beginning if no offset
-            enable_auto_commit=True,
-            auto_commit_interval_ms=1000
-        )
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"🔌 Connecting to Kafka at {self.bootstrap_servers} (attempt {attempt + 1}/{max_retries})...")
 
-        await self.consumer.start()
-        self.is_running = True
+                self.consumer = AIOKafkaConsumer(
+                    self.topic,
+                    bootstrap_servers=self.bootstrap_servers,
+                    group_id=self.group_id,
+                    value_deserializer=lambda m: json.loads(m.decode('utf-8')),
+                    auto_offset_reset='earliest',  # Start from beginning if no offset
+                    enable_auto_commit=True,
+                    auto_commit_interval_ms=1000
+                )
 
-        logger.info(f"✅ Kafka consumer started. Listening to topic: {self.topic}")
+                await self.consumer.start()
+                self.is_running = True
 
-        # Start consuming messages
-        asyncio.create_task(self._consume_messages())
+                logger.info(f"✅ Kafka consumer started. Listening to topic: {self.topic}")
+
+                # Start consuming messages
+                asyncio.create_task(self._consume_messages())
+                return  # Success!
+
+            except Exception as e:
+                logger.warning(f"⚠️  Kafka connection attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    logger.info(f"⏳ Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    logger.error(f"❌ Failed to connect to Kafka after {max_retries} attempts")
+                    raise
 
     async def _consume_messages(self):
         """Consume messages from Kafka"""

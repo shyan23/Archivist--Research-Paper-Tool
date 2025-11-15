@@ -5,6 +5,7 @@ pydantic==2.5.3
 
 # Kafka
 aiokafka==0.10.0
+python-snappy==0.7.2
 
 # Neo4j
 neo4j==5.16.0

@@ -120,7 +120,7 @@ async def startup_event():
             uri=neo4j_uri,
             username=neo4j_user,
             password=neo4j_password,
-            database="archivist"
+            database="neo4j"
         )
         await graph_builder.connect()
         await graph_builder.initialize_schema()

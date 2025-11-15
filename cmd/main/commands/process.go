@@ -4,7 +4,6 @@ import (
 	"archivist/internal/app"
 	"archivist/internal/compiler"
 	"archivist/internal/profiler"
-	"archivist/internal/tui"
 	"archivist/internal/ui"
 	"archivist/internal/worker"
 	"archivist/pkg/fileutil"
@@ -12,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -219,11 +217,21 @@ func runProcess(cmd *cobra.Command, args []string) {
 	// Ask if user wants to enable RAG indexing
 	enableRAG := ui.PromptEnableRAG()
 
+	// Ask if user wants to enable graph building (only if graph is enabled in config)
+	enableGraphBuilding := false
+	if config.Graph.Enabled && interactive {
+		enableGraphBuilding = ui.PromptEnableGraphBuilding()
+		if enableGraphBuilding {
+			ui.PrintInfo("Graph building will run concurrently in the background")
+			ui.PrintInfo("Make sure services are running: scripts/setup_graph.sh")
+		}
+	}
+
 	// Process files
 	fmt.Println()
 	ui.PrintStage("Processing Papers", "Starting batch processing")
 	ctx := context.Background()
-	if err := worker.ProcessBatch(ctx, files, config, force, enableRAG); err != nil {
+	if err := worker.ProcessBatch(ctx, files, config, force, enableRAG, enableGraphBuilding); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintInfo("Press Enter to continue...")
@@ -231,17 +239,9 @@ func runProcess(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// After successful processing, automatically return to TUI
+	// Processing complete
 	fmt.Println()
 	ui.PrintSuccess("All processing complete!")
-	ui.PrintInfo("Returning to homepage...")
-
-	time.Sleep(2 * time.Second) // Brief pause to let user see the success message
-
-	if err := tui.Run(ConfigPath); err != nil {
-		ui.PrintError(fmt.Sprintf("TUI error: %v", err))
-		os.Exit(1)
-	}
 }
 
 func applyModeConfig(config *app.Config, mode ui.ProcessingMode) {

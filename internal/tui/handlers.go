@@ -250,7 +250,8 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 	fmt.Println()
 	ui.PrintStage("Processing Paper", filepath.Base(paperPath))
 	ctx := context.Background()
-	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false, enableRAG); err != nil {
+	enableGraphBuilding := config.Graph.Enabled && ui.PromptEnableGraphBuilding()
+	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false, enableRAG, enableGraphBuilding); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Processing encountered an error")
@@ -374,8 +375,9 @@ func handleBatchProcessing(config *app.Config) error {
 	ctx := context.Background()
 	// Ask if user wants to enable RAG indexing for chat
 	enableRAG := ui.PromptEnableRAG()
+	enableGraphBuilding := config.Graph.Enabled && ui.PromptEnableGraphBuilding()
 
-	if err := worker.ProcessBatch(ctx, files, config, false, enableRAG); err != nil {
+	if err := worker.ProcessBatch(ctx, files, config, false, enableRAG, enableGraphBuilding); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Batch processing encountered an error")
@@ -487,8 +489,9 @@ func handleMultiplePapersProcessing(paperPaths []string, config *app.Config) err
 	ctx := context.Background()
 	// Ask if user wants to enable RAG indexing for chat
 	enableRAG := ui.PromptEnableRAG()
+	enableGraphBuilding := config.Graph.Enabled && ui.PromptEnableGraphBuilding()
 
-	if err := worker.ProcessBatch(ctx, paperPaths, config, false, enableRAG); err != nil {
+	if err := worker.ProcessBatch(ctx, paperPaths, config, false, enableRAG, enableGraphBuilding); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Processing encountered an error")
@@ -598,7 +601,8 @@ func handleProcessAndChat(paperPath string, config *app.Config) error {
 	fmt.Println()
 	ui.PrintStage("Processing Paper for Chat", filepath.Base(paperPath))
 	ctx := context.Background()
-	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false, true); err != nil {
+	enableGraphBuilding := config.Graph.Enabled && ui.PromptEnableGraphBuilding()
+	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false, true, enableGraphBuilding); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Processing encountered an error")
