@@ -3,6 +3,7 @@ package tui
 import (
 	"archivist/internal/app"
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -108,6 +109,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chatPaperList.SetSize(w, h)
 		case screenSearchResults:
 			m.searchResultsList.SetSize(w, h)
+		case screenSearchMode:
+			m.searchModeMenu.SetSize(w, h)
+		case screenSimilarPaperSelect:
+			m.similarPaperList.SetSize(w, h)
+		case screenSimilarFactorsEdit:
+			m.similarFactorsList.SetSize(w, h-12)
 		}
 
 		return m, nil
@@ -115,7 +122,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ChatResponseMsg:
 		return m.handleChatResponse(msg)
 
+	case essenceExtractedMsg:
+		return m.handleEssenceExtracted(msg)
+
+	case searchResultMsg:
+		return m.handleSearchResult(msg)
+
+	case LoadingTickMsg:
+		if m.searchLoading {
+			m.searchLoadingFrame++
+			return m, tickEvery(100 * time.Millisecond)
+		}
+		return m, nil
+
 	case tea.KeyMsg:
+		// Handle similar factors editing separately
+		if m.screen == screenSimilarFactorsEdit {
+			return m.handleSimilarFactorsEdit(msg)
+		}
+
 		// Handle search input separately
 		if m.screen == screenSearch {
 			return m.handleSearchInput(msg)
@@ -200,6 +225,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chatPaperList, cmd = m.chatPaperList.Update(msg)
 	case screenSearchResults:
 		m.searchResultsList, cmd = m.searchResultsList.Update(msg)
+	case screenSearchMode:
+		m.searchModeMenu, cmd = m.searchModeMenu.Update(msg)
+	case screenSimilarPaperSelect:
+		m.similarPaperList, cmd = m.similarPaperList.Update(msg)
+	case screenSimilarFactorsEdit:
+		// Handled separately in key handler
+		cmd = nil
 	}
 
 	return m, cmd
@@ -211,7 +243,10 @@ func (m Model) executeCommand(action string) (tea.Model, tea.Cmd) {
 	case "search_papers":
 		m.navigateTo(screenSearch)
 		m.searchInput = ""
+		m.searchMaxResults = ""
+		m.searchInputMode = "query"
 		m.searchLoading = false
+		m.searchError = ""
 	case "view_library":
 		m.navigateTo(screenViewLibrary)
 		m.loadLibraryPapers()

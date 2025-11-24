@@ -18,3 +18,4 @@ docker run -d --name archivist-graph-service \
 echo "Graph service started!"
 sleep 10
 docker logs archivist-graph-service --tail 30
+``

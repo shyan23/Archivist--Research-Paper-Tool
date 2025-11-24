@@ -58,6 +58,12 @@ func (m Model) View() string {
 		} else {
 			content = m.searchResultsList.View()
 		}
+	case screenSearchMode:
+		content = m.renderSearchModeScreen()
+	case screenSimilarPaperSelect:
+		content = m.renderSimilarPaperSelectScreen()
+	case screenSimilarFactorsEdit:
+		content = m.renderSimilarFactorsEditScreen()
 	}
 
 	// Footer with help (add Ctrl+P hint)

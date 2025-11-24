@@ -3,11 +3,37 @@ package tui
 import (
 	"archivist/internal/search"
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// cleanTextForDisplay removes LaTeX markup and fixes escaped characters
+func cleanTextForDisplay(text string) string {
+	// Replace escaped newlines with spaces
+	text = strings.ReplaceAll(text, "\\n", " ")
+	text = strings.ReplaceAll(text, "\n", " ")
+
+	// Remove LaTeX commands like \tilde{...}, \hat{...}, etc.
+	latexCommands := regexp.MustCompile(`\\[a-zA-Z]+\{([^}]*)\}`)
+	text = latexCommands.ReplaceAllString(text, "$1")
+
+	// Remove standalone LaTeX commands like \alpha, \beta, etc.
+	standaloneLatex := regexp.MustCompile(`\\[a-zA-Z]+`)
+	text = standaloneLatex.ReplaceAllString(text, "")
+
+	// Remove extra spaces
+	multipleSpaces := regexp.MustCompile(`\s+`)
+	text = multipleSpaces.ReplaceAllString(text, " ")
+
+	// Trim
+	text = strings.TrimSpace(text)
+
+	return text
+}
 
 // renderSearchScreen renders the search input screen
 func (m Model) renderSearchScreen() string {
@@ -16,11 +42,9 @@ func (m Model) renderSearchScreen() string {
 	sb.WriteString(titleStyle.Render("🔍 Search for Research Papers") + "\n\n")
 	sb.WriteString("Search across arXiv, OpenReview, and ACL Anthology\n\n")
 
-	// Show loading state if searching
+	// Show loading animation if searching
 	if m.searchLoading {
-		sb.WriteString(successStyle.Render("🔄 Searching...") + "\n\n")
-		sb.WriteString(helpStyle.Render("Please wait while we search for papers...") + "\n")
-		return sb.String()
+		return renderLoadingAnimation(m.searchLoadingFrame, m.searchInput)
 	}
 
 	// Show error if there was one
@@ -28,15 +52,24 @@ func (m Model) renderSearchScreen() string {
 		sb.WriteString(warningStyle.Render("⚠️  " + m.searchError) + "\n\n")
 	}
 
-	// Input field
-	sb.WriteString(inputBoxStyle.Render("Query: " + m.searchInput + "█") + "\n\n")
+	// Input fields based on mode
+	if m.searchInputMode == "count" {
+		// Show query (already entered) and ask for count
+		sb.WriteString(successStyle.Render("Query: ") + m.searchInput + "\n\n")
+		sb.WriteString(inputBoxStyle.Render("How many papers? (5-100): " + m.searchMaxResults + "█") + "\n\n")
+		sb.WriteString(helpStyle.Render("Enter a number between 5 and 100, then press Enter\n"))
+		sb.WriteString(helpStyle.Render("Default: 20 papers\n\n"))
+	} else {
+		// Query input mode (default)
+		sb.WriteString(inputBoxStyle.Render("Query: " + m.searchInput + "█") + "\n\n")
 
-	// Instructions
-	sb.WriteString(helpStyle.Render("Type your search query and press Enter\n"))
-	sb.WriteString(helpStyle.Render("Examples:\n"))
-	sb.WriteString(helpStyle.Render("  • \"transformer architecture\"\n"))
-	sb.WriteString(helpStyle.Render("  • \"vision transformers\"\n"))
-	sb.WriteString(helpStyle.Render("  • \"attention mechanisms\"\n\n"))
+		// Instructions
+		sb.WriteString(helpStyle.Render("Type your search query and press Enter\n"))
+		sb.WriteString(helpStyle.Render("Examples:\n"))
+		sb.WriteString(helpStyle.Render("  • \"transformer architecture\"\n"))
+		sb.WriteString(helpStyle.Render("  • \"vision transformers\"\n"))
+		sb.WriteString(helpStyle.Render("  • \"attention mechanisms\"\n\n"))
+	}
 
 	// Check if search service is running
 	client := search.NewClient("http://localhost:8000")
@@ -55,59 +88,111 @@ func (m Model) renderSearchScreen() string {
 
 // handleSearchEnter processes the search query when Enter is pressed
 func (m *Model) handleSearchEnter() (tea.Model, tea.Cmd) {
-	if m.searchInput == "" {
+	// If in query mode, move to count mode
+	if m.searchInputMode == "" || m.searchInputMode == "query" {
+		if m.searchInput == "" {
+			return m, nil
+		}
+		// Switch to count input mode
+		m.searchInputMode = "count"
+		m.searchMaxResults = "20" // Default
 		return m, nil
 	}
 
-	// Clear previous error
-	m.searchError = ""
+	// If in count mode, perform search
+	if m.searchInputMode == "count" {
+		// Parse max results
+		maxResults := 20 // Default
+		if m.searchMaxResults != "" {
+			fmt.Sscanf(m.searchMaxResults, "%d", &maxResults)
+			if maxResults < 5 {
+				maxResults = 5
+			}
+			if maxResults > 100 {
+				maxResults = 100
+			}
+		}
 
-	// Create search client
-	client := search.NewClient("http://localhost:8000")
+		// Clear previous error
+		m.searchError = ""
 
-	// Check if service is running
-	if !client.IsServiceRunning() {
-		// Service not running, stay on search screen
-		m.searchError = "Search service is not running"
-		return m, nil
+		// Create search client
+		client := search.NewClient("http://localhost:8000")
+
+		// Check if service is running
+		if !client.IsServiceRunning() {
+			m.searchError = "Search service is not running"
+			return m, nil
+		}
+
+		// Start loading animation
+		m.searchLoading = true
+		m.searchLoadingFrame = 0
+
+		// Perform search asynchronously and start ticker for animation
+		return m, tea.Batch(
+			m.performSearch(client, m.searchInput, maxResults),
+			tickEvery(100 * time.Millisecond),
+		)
 	}
 
-	// Perform search
-	m.searchLoading = true
-	query := &search.SearchQuery{
-		Query:      m.searchInput,
-		MaxResults: 20,
-		Sources:    []string{}, // Search all sources
-	}
+	return m, nil
+}
 
-	// Execute search synchronously (could be made async with tea.Cmd)
-	results, err := client.Search(query)
+// performSearch executes the search and returns results
+func (m *Model) performSearch(client *search.Client, query string, maxResults int) tea.Cmd {
+	return func() tea.Msg {
+		searchQuery := &search.SearchQuery{
+			Query:      query,
+			MaxResults: maxResults,
+			Sources:    []string{}, // Search all sources
+		}
+
+		results, err := client.Search(searchQuery)
+		return searchResultMsg{
+			results: results,
+			err:     err,
+		}
+	}
+}
+
+// searchResultMsg contains search results
+type searchResultMsg struct {
+	results *search.SearchResponse
+	err     error
+}
+
+// handleSearchResult processes search results
+func (m *Model) handleSearchResult(msg searchResultMsg) (tea.Model, tea.Cmd) {
 	m.searchLoading = false
 
-	if err != nil {
-		// Show error message
-		m.searchError = fmt.Sprintf("Search failed: %v", err)
+	if msg.err != nil {
+		m.searchError = fmt.Sprintf("Search failed: %v", msg.err)
 		return m, nil
 	}
 
-	if results.Total == 0 {
-		// No results, stay on search screen
+	if msg.results.Total == 0 {
 		m.searchError = "No results found for your query"
 		return m, nil
 	}
 
+	results := msg.results
+
 	// Convert results to list items
 	items := make([]list.Item, len(results.Results))
 	for i, result := range results.Results {
+		// Clean title and abstract from LaTeX and escaped characters
+		cleanTitle := cleanTextForDisplay(result.Title)
+		cleanAbstract := cleanTextForDisplay(result.Abstract)
+
 		// Truncate abstract for display
-		abstract := result.Abstract
-		if len(abstract) > 150 {
-			abstract = abstract[:150] + "..."
+		if len(cleanAbstract) > 150 {
+			cleanAbstract = cleanAbstract[:150] + "..."
 		}
 
 		items[i] = item{
-			title:       result.Title,
-			description: fmt.Sprintf("%s | %s | %s", result.Source, result.Venue, abstract),
+			title:       cleanTitle,
+			description: fmt.Sprintf("%s | %s | %s", result.Source, result.Venue, cleanAbstract),
 			action:      result.PDFURL, // Store PDF URL in action field
 		}
 	}

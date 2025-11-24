@@ -8,9 +8,16 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 import json
 
-from .chunker import TextChunker, Chunk, create_chunks_from_latex
-from .embeddings import EmbeddingProvider
-from .vector_store import VectorStore, VectorDocument
+try:
+    from .chunker import TextChunker, Chunk, create_chunks_from_latex
+    from .embeddings import EmbeddingProvider
+    from .vector_store import VectorStore, VectorDocument
+    from .pdf_utils import extract_text_from_pdf, extract_title_from_pdf
+except ImportError:
+    from chunker import TextChunker, Chunk, create_chunks_from_latex
+    from embeddings import EmbeddingProvider
+    from vector_store import VectorStore, VectorDocument
+    from pdf_utils import extract_text_from_pdf, extract_title_from_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -171,48 +178,102 @@ class DocumentIndexer:
 
         return self.index_paper(paper_title, latex_content, pdf_path, force_reindex)
 
+    def index_paper_from_pdf(
+        self,
+        pdf_path: str,
+        paper_title: Optional[str] = None,
+        force_reindex: bool = False
+    ) -> int:
+        """
+        Index a paper from a PDF file
+
+        Args:
+            pdf_path: Path to .pdf file
+            paper_title: Optional paper title (extracted from filename/metadata if not provided)
+            force_reindex: Whether to force reindexing
+
+        Returns:
+            Number of chunks indexed
+        """
+        pdf_path = Path(pdf_path)
+
+        if not pdf_path.exists():
+            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+
+        # Extract text from PDF
+        text_content = extract_text_from_pdf(str(pdf_path))
+
+        if not text_content:
+            logger.warning(f"No text extracted from PDF: {pdf_path}")
+            return 0
+
+        # Extract title if not provided
+        if not paper_title:
+            # Try to get from PDF metadata first
+            paper_title = extract_title_from_pdf(str(pdf_path))
+            if not paper_title:
+                # Fall back to filename
+                paper_title = pdf_path.stem
+
+        return self.index_paper(paper_title, text_content, str(pdf_path), force_reindex)
+
     def index_directory(
         self,
-        latex_dir: str,
+        directory: str,
         pattern: str = "*.tex",
         force_reindex: bool = False
     ) -> Dict[str, int]:
         """
-        Index all LaTeX files in a directory
+        Index all LaTeX or PDF files in a directory
 
         Args:
-            latex_dir: Directory containing .tex files
-            pattern: File pattern to match
+            directory: Directory containing .tex or .pdf files
+            pattern: File pattern to match (e.g., "*.tex", "*.pdf")
             force_reindex: Whether to force reindexing
 
         Returns:
             Dictionary mapping paper titles to number of chunks indexed
         """
-        latex_dir = Path(latex_dir)
+        directory = Path(directory)
 
-        if not latex_dir.exists():
-            raise FileNotFoundError(f"Directory not found: {latex_dir}")
+        if not directory.exists():
+            raise FileNotFoundError(f"Directory not found: {directory}")
 
-        tex_files = list(latex_dir.glob(pattern))
+        files = list(directory.glob(pattern))
 
-        if not tex_files:
-            logger.warning(f"No .tex files found in {latex_dir}")
+        if not files:
+            logger.warning(f"No files matching '{pattern}' found in {directory}")
             return {}
 
-        logger.info(f"📚 Indexing {len(tex_files)} papers from {latex_dir}")
+        logger.info(f"📚 Indexing {len(files)} papers from {directory}")
 
         results = {}
 
-        for tex_file in tex_files:
+        for file_path in files:
             try:
-                num_chunks = self.index_paper_from_latex_file(
-                    str(tex_file),
-                    force_reindex=force_reindex
-                )
-                results[tex_file.stem] = num_chunks
+                # Handle PDF files
+                if file_path.suffix.lower() == '.pdf':
+                    num_chunks = self.index_paper_from_pdf(
+                        str(file_path),
+                        force_reindex=force_reindex
+                    )
+                    # Use extracted title or filename
+                    title = extract_title_from_pdf(str(file_path)) or file_path.stem
+                    results[title] = num_chunks
+                # Handle LaTeX files
+                elif file_path.suffix.lower() == '.tex':
+                    num_chunks = self.index_paper_from_latex_file(
+                        str(file_path),
+                        force_reindex=force_reindex
+                    )
+                    results[file_path.stem] = num_chunks
+                else:
+                    logger.warning(f"  ⚠️ Unsupported file type: {file_path.name}")
+                    continue
+
             except Exception as e:
-                logger.error(f"  ❌ Failed to index {tex_file.name}: {e}")
-                results[tex_file.stem] = 0
+                logger.error(f"  ❌ Failed to index {file_path.name}: {e}")
+                results[file_path.stem] = 0
 
         logger.info(f"✅ Batch indexing complete: {len(results)} papers processed")
         return results

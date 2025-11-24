@@ -31,7 +31,7 @@ class EmbeddingConfig(BaseModel):
 class VectorStoreConfig(BaseModel):
     """Vector store configuration"""
     # Options: "chromadb", "faiss", "redis"
-    provider: str = "chromadb"
+    provider: str = "faiss"  # Default to FAISS (CPU-friendly, no server needed)
 
     # ChromaDB settings
     persist_directory: str = ".metadata/chromadb"

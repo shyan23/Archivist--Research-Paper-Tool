@@ -23,6 +23,10 @@ const (
 	screenChat
 	screenSearch
 	screenSearchResults
+	screenSearchMode           // Choose between manual and similar search
+	screenSimilarPaperSelect   // Select a paper for similar search
+	screenSimilarFactorsEdit   // Edit extracted factors
+	screenSimilarSearchResults // Results from similar search
 )
 
 // Model represents the TUI application state
@@ -58,9 +62,22 @@ type Model struct {
 
 	// Search-related fields
 	searchInput        string            // Search query input
+	searchMaxResults   string            // Max results input (as string for display)
+	searchInputMode    string            // "query" or "count"
 	searchResultsList  list.Model        // List of search results
 	searchLoading      bool              // Is search in progress
+	searchLoadingFrame int               // For loading animation
 	searchError        string            // Error message from search
+
+	// Similar paper search fields
+	searchModeMenu          list.Model        // Menu for choosing search mode
+	similarPaperList        list.Model        // List of papers to choose from
+	selectedSimilarPaper    string            // Paper selected for similar search
+	similarFactors          []string          // Extracted factors (editable)
+	similarFactorsList      list.Model        // List for editing factors
+	similarFactorInput      string            // Input for adding new factor
+	similarExtractingEssence bool             // Is extracting essence
+	similarEssenceError     string            // Error during essence extraction
 }
 
 // Item represents a menu item

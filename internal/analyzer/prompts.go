@@ -16,6 +16,9 @@ The output should be a COMPLETE, READY-TO-COMPILE LaTeX document following this 
 \usepackage{geometry}
 \usepackage{tcolorbox}
 \usepackage{enumitem}
+\usepackage{tikz}
+\usepackage{float}
+\usetikzlibrary{shapes,arrows,positioning,fit,calc}
 \geometry{margin=1in}
 
 % Custom environments
@@ -52,6 +55,14 @@ The output should be a COMPLETE, READY-TO-COMPILE LaTeX document following this 
 \section{Methods Overview}
 % List the primary techniques/architectures used
 
+\section{Architecture Diagram Description}
+% IMPORTANT: Provide a detailed textual description of the system architecture
+% This description will be used to generate a visual diagram
+% Format:
+% Components: [List all major components]
+% Data Flow: [Describe how data flows through the system step-by-step]
+% Key Interactions: [Describe how components interact]
+
 \section{Detailed Methodology}
 
 \subsection{Prerequisites}
@@ -77,34 +88,42 @@ The output should be a COMPLETE, READY-TO-COMPILE LaTeX document following this 
 % What makes this work significant?
 \end{keyinsight}
 
-\section{Experimental Setup}
-\subsection{Datasets}
-% Benchmark datasets used
-
-\subsection{Evaluation Metrics}
-% Metrics used for evaluation
-
-\section{Results and Improvements}
-% Quantitative improvements (with specific numbers)
-% Qualitative improvements
-% Where does it excel? Where are limitations?
-
 \section{Conclusion}
 % Key takeaways for students
 % Impact on the field
-% Future directions
+% Practical applications and implications
 
 \end{document}
 
-IMPORTANT:
+IMPORTANT GUIDELINES:
 - Write for CS students, not experts
 - Explain technical terms when first introduced
-- Be detailed but clear
-- Use examples where helpful
+- Be detailed but clear - focus on conceptual understanding
+- Use examples and analogies where helpful
 - Maintain technical accuracy while being accessible
 - Output ONLY the complete LaTeX document, nothing else
 - Do NOT include markdown code blocks or any other formatting
 - Start directly with \documentclass
+
+CONTENT FOCUS:
+✅ INCLUDE:
+- Problem statement and motivation
+- Architecture and methodology (conceptual explanation)
+- Novel contributions and breakthrough ideas
+- How the system works (step-by-step)
+- Prerequisites and background knowledge
+- Practical implications
+
+❌ EXCLUDE (DO NOT INCLUDE):
+- Benchmark results and evaluation metrics
+- Performance comparisons with other methods
+- Experimental setup details
+- Dataset statistics and numbers
+- Quantitative results and tables
+- Ablation studies
+- Any sections titled "Experimental Setup", "Results", "Evaluation", or "Experiments"
+
+The goal is conceptual understanding, NOT empirical validation.
 
 LATEX SYNTAX RULES (CRITICAL):
 - ALWAYS use proper LaTeX command syntax with braces: \textit{word} NOT \textitword

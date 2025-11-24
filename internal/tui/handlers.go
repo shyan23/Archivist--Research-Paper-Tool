@@ -13,6 +13,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/charmbracelet/bubbles/list"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -52,7 +54,30 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 
 		switch action {
 		case "search_papers":
-			m.navigateTo(screenSearch)
+			// Initialize search mode menu
+			modeItems := []list.Item{
+				item{
+					title:       "📝 Manual Search",
+					description: "Enter a search query manually",
+					action:      "manual",
+				},
+				item{
+					title:       "🔍 Find Similar Papers",
+					description: "Select a paper from your library to find similar papers",
+					action:      "similar",
+				},
+			}
+			delegate := createStyledDelegate()
+			m.searchModeMenu = list.New(modeItems, delegate, m.width, m.height)
+			m.searchModeMenu.Title = "Choose Search Mode"
+			m.searchModeMenu.SetShowStatusBar(false)
+			m.searchModeMenu.SetFilteringEnabled(false)
+			m.searchModeMenu.Styles.Title = titleStyle
+			if m.width > 0 && m.height > 0 {
+				m.searchModeMenu.SetSize(m.width-4, m.height-8)
+			}
+
+			m.navigateTo(screenSearchMode)
 			m.searchInput = ""
 			m.searchLoading = false
 			m.searchError = ""
@@ -146,6 +171,15 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 	} else if m.screen == screenSearchResults {
 		// Handle search result selection (download paper)
 		return m.handleSearchResultSelection()
+	} else if m.screen == screenSearchMode {
+		// Handle search mode selection
+		return m.handleSearchModeSelection()
+	} else if m.screen == screenSimilarPaperSelect {
+		// Handle paper selection for similar search
+		return m.handleSimilarPaperSelection()
+	} else if m.screen == screenSimilarFactorsEdit {
+		// Don't handle enter here - handled separately in Update
+		return m, nil
 	}
 
 	return m, nil
@@ -658,33 +692,49 @@ func applyModeConfig(config *app.Config, mode ui.ProcessingMode) {
 	config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "models/gemini-2.0-flash-exp"
 }
 
-// handleSearchInput handles text input for search query
+// handleSearchInput handles text input for search query and count
 func (m Model) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		// Go back to main menu
+		// If in count mode, go back to query mode
+		if m.searchInputMode == "count" {
+			m.searchInputMode = "query"
+			m.searchMaxResults = ""
+			return m, nil
+		}
+		// Otherwise go back to main menu
 		m.navigateBack()
 		return m, nil
 
 	case "enter":
-		// Trigger search
-		if m.searchInput == "" {
-			return m, nil
-		}
-		// Call the search handler
+		// Call the search handler (handles mode switching)
 		return m.handleSearchEnter()
 
 	case "backspace":
-		// Delete last character
-		if len(m.searchInput) > 0 {
-			m.searchInput = m.searchInput[:len(m.searchInput)-1]
+		// Delete last character from appropriate field
+		if m.searchInputMode == "count" {
+			if len(m.searchMaxResults) > 0 {
+				m.searchMaxResults = m.searchMaxResults[:len(m.searchMaxResults)-1]
+			}
+		} else {
+			if len(m.searchInput) > 0 {
+				m.searchInput = m.searchInput[:len(m.searchInput)-1]
+			}
 		}
 		return m, nil
 
 	default:
-		// Add character to input (only printable characters)
+		// Add character to appropriate field
 		if len(msg.Runes) == 1 {
-			m.searchInput += string(msg.Runes[0])
+			if m.searchInputMode == "count" {
+				// Only allow digits for count
+				if msg.Runes[0] >= '0' && msg.Runes[0] <= '9' {
+					m.searchMaxResults += string(msg.Runes[0])
+				}
+			} else {
+				// Normal text input for query
+				m.searchInput += string(msg.Runes[0])
+			}
 		}
 	}
 

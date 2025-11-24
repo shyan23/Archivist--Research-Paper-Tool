@@ -62,6 +62,12 @@ var (
 	successStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#04B575")).
 			Bold(true)
+
+	highlightStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(lipgloss.Color("#7D56F4")).
+			Bold(true).
+			Padding(0, 1)
 )
 
 // createStyledDelegate creates a consistently styled list delegate

@@ -9,7 +9,10 @@ from typing import List, Optional, Dict, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-from .retriever import Retriever, RetrievedContext
+try:
+    from .retriever import Retriever, RetrievedContext
+except ImportError:
+    from retriever import Retriever, RetrievedContext
 
 logger = logging.getLogger(__name__)
 
