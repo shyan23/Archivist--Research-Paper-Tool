@@ -64,6 +64,10 @@ func (m Model) View() string {
 		content = m.renderSimilarPaperSelectScreen()
 	case screenSimilarFactorsEdit:
 		content = m.renderSimilarFactorsEditScreen()
+	case screenSettings:
+		content = m.settingsMenu.View()
+	case screenDirectorySettings:
+		content = m.renderDirectorySettingsScreen()
 	}
 
 	// Footer with help (add Ctrl+P hint)

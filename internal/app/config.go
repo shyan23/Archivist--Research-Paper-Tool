@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"runtime"
@@ -171,10 +172,80 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	// Load API key from environment
+	// Load user preferences and override config directories
+	prefs, err := LoadPreferences()
+	if err == nil && prefs.ConfiguredOnce {
+		// User has configured preferences, use them
+		if prefs.InputDirectory != "" {
+			config.InputDir = prefs.InputDirectory
+		}
+		if prefs.OutputDirectory != "" {
+			config.ReportOutputDir = prefs.OutputDirectory
+		}
+	} else if err == nil && !prefs.ConfiguredOnce {
+		// First time user - prompt for setup
+		fmt.Println()
+		fmt.Println("⚠️  No directory preferences found!")
+		fmt.Println()
+		fmt.Println("You can either:")
+		fmt.Println("  1. Run setup now (recommended)")
+		fmt.Println("  2. Use defaults (./lib and ./reports)")
+		fmt.Println("  3. Configure later in Settings")
+		fmt.Println()
+		fmt.Print("Run setup now? (y/n): ")
+
+		var response string
+		fmt.Scanln(&response)
+
+		if response == "y" || response == "Y" || response == "yes" {
+			newPrefs, setupErr := PromptForInitialSetup()
+			if setupErr == nil {
+				config.InputDir = newPrefs.InputDirectory
+				config.ReportOutputDir = newPrefs.OutputDirectory
+			}
+		} else {
+			fmt.Println()
+			fmt.Println("Using defaults:")
+			fmt.Printf("  📥 Input:  %s\n", config.InputDir)
+			fmt.Printf("  📤 Output: %s\n", config.ReportOutputDir)
+			fmt.Println()
+			fmt.Println("💡 Tip: You can configure custom directories anytime from Settings!")
+			fmt.Println()
+		}
+	}
+
+	// Load API key from environment or prompt for it
 	config.Gemini.APIKey = os.Getenv("GEMINI_API_KEY")
 	if config.Gemini.APIKey == "" {
-		return nil, fmt.Errorf("GEMINI_API_KEY not found in environment")
+		fmt.Println()
+		fmt.Println("═══════════════════════════════════════════════════════════════")
+		fmt.Println("                    API KEY NOT FOUND                          ")
+		fmt.Println("═══════════════════════════════════════════════════════════════")
+		fmt.Println()
+		fmt.Println("GEMINI_API_KEY not found in environment or .env file.")
+		fmt.Println()
+		fmt.Println("You can get your API key from:")
+		fmt.Println("  https://aistudio.google.com/app/apikey")
+		fmt.Println()
+
+		apiKey, err := promptForAPIKey()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get API key: %w", err)
+		}
+
+		config.Gemini.APIKey = apiKey
+
+		// Ask if user wants to save to .env
+		if shouldSave, _ := promptYesNo("Save API key to .env file? (y/n)"); shouldSave {
+			if err := saveAPIKeyToEnv(apiKey); err != nil {
+				fmt.Printf("Warning: Failed to save to .env: %v\n", err)
+				fmt.Println("You can manually add it to .env file:")
+				fmt.Printf("  GEMINI_API_KEY=%s\n", apiKey)
+			} else {
+				fmt.Println("✅ API key saved to .env file")
+			}
+		}
+		fmt.Println()
 	}
 
 	// Validate configuration
@@ -281,4 +352,68 @@ func ensureDirectories(config *Config) error {
 	}
 
 	return nil
+}
+
+// promptForAPIKey prompts the user to enter their API key
+func promptForAPIKey() (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter your GEMINI_API_KEY: ")
+	apiKey, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return "", fmt.Errorf("API key cannot be empty")
+	}
+
+	return apiKey, nil
+}
+
+// promptYesNo prompts for a yes/no answer
+func promptYesNo(prompt string) (bool, error) {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print(prompt + " ")
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+
+	response = strings.ToLower(strings.TrimSpace(response))
+	return response == "y" || response == "yes", nil
+}
+
+// saveAPIKeyToEnv saves the API key to the .env file
+func saveAPIKeyToEnv(apiKey string) error {
+	envPath := ".env"
+
+	// Check if .env exists
+	content := ""
+	if data, err := os.ReadFile(envPath); err == nil {
+		content = string(data)
+	}
+
+	// Check if GEMINI_API_KEY already exists in file
+	lines := strings.Split(content, "\n")
+	found := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "GEMINI_API_KEY=") {
+			lines[i] = fmt.Sprintf("GEMINI_API_KEY=%s", apiKey)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// Add new line if file doesn't end with newline
+		if content != "" && !strings.HasSuffix(content, "\n") {
+			lines = append(lines, "")
+		}
+		lines = append(lines, fmt.Sprintf("GEMINI_API_KEY=%s", apiKey))
+	}
+
+	// Write back to file
+	newContent := strings.Join(lines, "\n")
+	return os.WriteFile(envPath, []byte(newContent), 0644)
 }

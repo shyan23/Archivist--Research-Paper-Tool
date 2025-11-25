@@ -31,38 +31,73 @@ func (cw *ConfigWizard) Run(configPath string) error {
 	fmt.Println("This wizard will help you set up your config.yaml file.")
 	fmt.Println()
 
-	// Step 1: Directory Configuration
+	// Step 1: API Key Configuration
+	if err := cw.configureAPIKey(); err != nil {
+		return err
+	}
+
+	// Step 2: Directory Configuration
 	if err := cw.configureDirectories(); err != nil {
 		return err
 	}
 
-	// Step 2: Processing Configuration
+	// Step 3: Processing Configuration
 	if err := cw.configureProcessing(); err != nil {
 		return err
 	}
 
-	// Step 3: Gemini Configuration
+	// Step 4: Gemini Configuration
 	if err := cw.configureGemini(); err != nil {
 		return err
 	}
 
-	// Step 4: LaTeX Configuration
+	// Step 5: LaTeX Configuration
 	if err := cw.configureLatex(); err != nil {
 		return err
 	}
 
-	// Step 5: Cache Configuration
+	// Step 6: Cache Configuration
 	if err := cw.configureCache(); err != nil {
 		return err
 	}
 
-	// Step 6: Logging Configuration
+	// Step 7: Logging Configuration
 	if err := cw.configureLogging(); err != nil {
 		return err
 	}
 
 	// Save configuration
 	return cw.saveConfig(configPath)
+}
+
+func (cw *ConfigWizard) configureAPIKey() error {
+	fmt.Println("🔑 API Key Configuration")
+	fmt.Println("───────────────────────────")
+	fmt.Println()
+	fmt.Println("You can get your API key from:")
+	fmt.Println("  https://aistudio.google.com/app/apikey")
+	fmt.Println()
+
+	apiKey, err := cw.promptString("Enter your GEMINI_API_KEY", "")
+	if err != nil {
+		return err
+	}
+
+	if apiKey == "" {
+		fmt.Println("⚠️  Warning: API key is empty. You'll need to set it later in .env file")
+	} else {
+		// Save to .env file
+		if err := saveAPIKeyToEnvFile(apiKey); err != nil {
+			fmt.Printf("⚠️  Warning: Failed to save to .env: %v\n", err)
+			fmt.Println("You can manually add it to .env file:")
+			fmt.Printf("  GEMINI_API_KEY=%s\n", apiKey)
+		} else {
+			fmt.Println("✅ API key saved to .env file")
+		}
+	}
+
+	fmt.Println()
+	return nil
 }
 
 func (cw *ConfigWizard) configureDirectories() error {
@@ -403,4 +438,38 @@ func (cw *ConfigWizard) saveConfig(configPath string) error {
 	fmt.Println()
 
 	return nil
+}
+
+// saveAPIKeyToEnvFile saves the API key to the .env file
+func saveAPIKeyToEnvFile(apiKey string) error {
+	envPath := ".env"
+
+	// Check if .env exists
+	content := ""
+	if data, err := os.ReadFile(envPath); err == nil {
+		content = string(data)
+	}
+
+	// Check if GEMINI_API_KEY already exists in file
+	lines := strings.Split(content, "\n")
+	found := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "GEMINI_API_KEY=") {
+			lines[i] = fmt.Sprintf("GEMINI_API_KEY=%s", apiKey)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// Add new line if file doesn't end with newline
+		if content != "" && !strings.HasSuffix(content, "\n") {
+			lines = append(lines, "")
+		}
+		lines = append(lines, fmt.Sprintf("GEMINI_API_KEY=%s", apiKey))
+	}
+
+	// Write back to file
+	newContent := strings.Join(lines, "\n")
+	return os.WriteFile(envPath, []byte(newContent), 0644)
 }

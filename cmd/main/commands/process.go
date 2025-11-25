@@ -21,6 +21,8 @@ var (
 	mode        string
 	interactive bool
 	selectPapers bool
+	inputDir     string
+	outputDir    string
 )
 
 // NewProcessCommand creates the process command
@@ -38,6 +40,8 @@ func NewProcessCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "processing mode: 'fast' (default: interactive)")
 	cmd.Flags().BoolVarP(&interactive, "interactive", "i", true, "enable interactive mode selection")
 	cmd.Flags().BoolVarP(&selectPapers, "select", "s", false, "interactively select papers to process from library")
+	cmd.Flags().StringVar(&inputDir, "input-dir", "", "input directory for PDF papers (overrides config)")
+	cmd.Flags().StringVar(&outputDir, "output-dir", "", "output directory for PDF reports (overrides config)")
 
 	return cmd
 }
@@ -78,6 +82,16 @@ func runProcess(cmd *cobra.Command, args []string) {
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Failed to load config: %v", err))
 		os.Exit(1)
+	}
+
+	// Override directories if flags are provided
+	if inputDir != "" {
+		config.InputDir = inputDir
+		ui.PrintInfo(fmt.Sprintf("Using custom input directory: %s", inputDir))
+	}
+	if outputDir != "" {
+		config.ReportOutputDir = outputDir
+		ui.PrintInfo(fmt.Sprintf("Using custom output directory: %s", outputDir))
 	}
 
 	// Initialize logger

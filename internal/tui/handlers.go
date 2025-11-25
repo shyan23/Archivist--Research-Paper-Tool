@@ -101,7 +101,16 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 			m.processing = true
 			m.processingMsg = "batch"
 			return m, tea.Quit
+		case "settings":
+			m.navigateTo(screenSettings)
+			m.loadSettingsMenu()
+			// Ensure menu is sized if we have dimensions
+			if m.width > 0 && m.height > 0 {
+				m.settingsMenu.SetSize(m.width-4, m.height-8)
+			}
 		}
+	} else if m.screen == screenSettings || m.screen == screenDirectorySettings {
+		return m.handleSettingsEnter()
 	} else if m.screen == screenSelectMultiplePapers {
 		// Confirm selection of multiple papers
 		if len(m.multiSelectIndexes) == 0 {

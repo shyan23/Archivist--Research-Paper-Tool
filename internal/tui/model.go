@@ -54,6 +54,11 @@ func InitialModel(configPath string) (*Model, error) {
 			description: "Process all papers in the lib folder",
 			action:      "process_all",
 		},
+		item{
+			title:       "⚙️  Settings",
+			description: "Configure directories and application settings",
+			action:      "settings",
+		},
 	}
 
 	// Create main menu list with styled delegate
@@ -72,6 +77,10 @@ func InitialModel(configPath string) (*Model, error) {
 		commandPalette:     NewCommandPalette(),
 		multiSelectIndexes: make(map[int]bool),
 	}
+
+	// Pre-initialize settings menu to avoid blank screen
+	m.loadSettingsMenu()
+	m.loadDirectorySettingsMenu()
 
 	return m, nil
 }
@@ -115,6 +124,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.similarPaperList.SetSize(w, h)
 		case screenSimilarFactorsEdit:
 			m.similarFactorsList.SetSize(w, h-12)
+		case screenSettings:
+			m.settingsMenu.SetSize(w, h)
+		case screenDirectorySettings:
+			m.directorySettingsMenu.SetSize(w, h)
 		}
 
 		return m, nil
@@ -139,6 +152,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle similar factors editing separately
 		if m.screen == screenSimilarFactorsEdit {
 			return m.handleSimilarFactorsEdit(msg)
+		}
+
+		// Handle directory input/file browser separately
+		if m.screen == screenDirectorySettings && (m.directoryInputMode != "" || m.fileBrowserActive) {
+			return m.handleDirectoryInput(msg)
 		}
 
 		// Handle search input separately
@@ -232,6 +250,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenSimilarFactorsEdit:
 		// Handled separately in key handler
 		cmd = nil
+	case screenSettings:
+		m.settingsMenu, cmd = m.settingsMenu.Update(msg)
+	case screenDirectorySettings:
+		if m.directoryInputMode == "" {
+			m.directorySettingsMenu, cmd = m.directorySettingsMenu.Update(msg)
+		}
 	}
 
 	return m, cmd
@@ -268,7 +292,14 @@ func (m Model) executeCommand(action string) (tea.Model, tea.Cmd) {
 		m.screenHistory = []screen{} // Clear history
 	case "quit":
 		return m, tea.Quit
-	case "settings", "clear_cache", "cache_stats", "check_deps":
+	case "settings":
+		m.navigateTo(screenSettings)
+		m.loadSettingsMenu()
+		// Ensure menu is sized if we have dimensions
+		if m.width > 0 && m.height > 0 {
+			m.settingsMenu.SetSize(m.width-4, m.height-8)
+		}
+	case "clear_cache", "cache_stats", "check_deps":
 		// These will be implemented as external commands
 		m.processingMsg = action
 		return m, tea.Quit

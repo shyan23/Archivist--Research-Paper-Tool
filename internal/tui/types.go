@@ -27,6 +27,8 @@ const (
 	screenSimilarPaperSelect   // Select a paper for similar search
 	screenSimilarFactorsEdit   // Edit extracted factors
 	screenSimilarSearchResults // Results from similar search
+	screenSettings             // Settings menu
+	screenDirectorySettings    // Configure input/output directories
 )
 
 // Model represents the TUI application state
@@ -78,6 +80,20 @@ type Model struct {
 	similarFactorInput      string            // Input for adding new factor
 	similarExtractingEssence bool             // Is extracting essence
 	similarEssenceError     string            // Error during essence extraction
+
+	// Settings fields
+	settingsMenu            list.Model        // Settings menu
+	directorySettingsMenu   list.Model        // Directory settings menu
+	directoryInput          string            // Current input for directory path
+	directoryInputMode      string            // "input_dir" or "output_dir"
+	directoryChanged        bool              // Track if directories were changed
+
+	// File browser fields
+	fileBrowserActive       bool              // Is file browser active
+	currentBrowserPath      string            // Current directory in browser
+	browserItems            []string          // Items in current directory
+	browserSelectedIndex    int               // Selected item index in browser
+	browserShowHidden       bool              // Show hidden files/folders
 }
 
 // Item represents a menu item
