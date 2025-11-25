@@ -2,12 +2,26 @@ package tui
 
 import (
 	"archivist/internal/app"
+	"archivist/internal/ui"
 	"fmt"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// showSplashScreen displays animated splash and welcome message
+func showSplashScreen(configPath string) {
+	// Show new Japanese minimalist animated splash
+	ui.AnimatedSplash()
+
+	// Load config to show directories and then display welcome
+	config, err := app.LoadConfig(configPath)
+	if err == nil {
+		ui.ShowWelcomeMessage(config.InputDir, config.ReportOutputDir)
+		time.Sleep(2 * time.Second)
+	}
+}
 
 // InitialModel creates a new TUI model
 func InitialModel(configPath string) (*Model, error) {
@@ -309,6 +323,9 @@ func (m Model) executeCommand(action string) (tea.Model, tea.Cmd) {
 
 // Run starts the TUI application
 func Run(configPath string) error {
+	// Show animated splash screen
+	showSplashScreen(configPath)
+
 	m, err := InitialModel(configPath)
 	if err != nil {
 		return err

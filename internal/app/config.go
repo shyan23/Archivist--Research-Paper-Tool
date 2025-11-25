@@ -183,35 +183,14 @@ func LoadConfig(configPath string) (*Config, error) {
 			config.ReportOutputDir = prefs.OutputDirectory
 		}
 	} else if err == nil && !prefs.ConfiguredOnce {
-		// First time user - prompt for setup
-		fmt.Println()
-		fmt.Println("⚠️  No directory preferences found!")
-		fmt.Println()
-		fmt.Println("You can either:")
-		fmt.Println("  1. Run setup now (recommended)")
-		fmt.Println("  2. Use defaults (./lib and ./reports)")
-		fmt.Println("  3. Configure later in Settings")
-		fmt.Println()
-		fmt.Print("Run setup now? (y/n): ")
-
-		var response string
-		fmt.Scanln(&response)
-
-		if response == "y" || response == "Y" || response == "yes" {
-			newPrefs, setupErr := PromptForInitialSetup()
-			if setupErr == nil {
-				config.InputDir = newPrefs.InputDirectory
-				config.ReportOutputDir = newPrefs.OutputDirectory
-			}
-		} else {
-			fmt.Println()
-			fmt.Println("Using defaults:")
-			fmt.Printf("  📥 Input:  %s\n", config.InputDir)
-			fmt.Printf("  📤 Output: %s\n", config.ReportOutputDir)
-			fmt.Println()
-			fmt.Println("💡 Tip: You can configure custom directories anytime from Settings!")
-			fmt.Println()
+		// First time user - use defaults, they can configure in Settings
+		// Save default preferences so we don't prompt again
+		defaultPrefs := &UserPreferences{
+			InputDirectory:  config.InputDir,
+			OutputDirectory: config.ReportOutputDir,
+			ConfiguredOnce:  true,
 		}
+		SavePreferences(defaultPrefs)
 	}
 
 	// Load API key from environment or prompt for it

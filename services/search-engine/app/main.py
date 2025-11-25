@@ -6,7 +6,6 @@ import os
 import asyncio
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException, File, UploadFile, Body
-from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
@@ -49,13 +48,14 @@ providers = {
 }
 
 
-@app.get("/", response_model=HealthResponse)
+@app.get("/")
 async def root():
-    """Root endpoint - health check."""
+    """Root endpoint - API is running."""
     return {
-        "status": "running",
+        "message": "Archivist Search Engine API",
         "version": __version__,
-        "providers": list(providers.keys())
+        "docs": "/docs",
+        "status": "running"
     }
 
 

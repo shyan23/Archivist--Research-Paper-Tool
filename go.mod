@@ -16,11 +16,11 @@ require (
 	github.com/qdrant/go-client v1.15.2
 	github.com/redis/go-redis/v9 v9.14.0
 	github.com/schollz/progressbar/v3 v3.18.0
+	github.com/segmentio/kafka-go v0.4.49
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/api v0.186.0
-	google.golang.org/grpc v1.76.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -66,7 +66,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
-	github.com/segmentio/kafka-go v0.4.49 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
@@ -83,6 +82,7 @@ require (
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250804133106-a7a43d27e69b // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
+	google.golang.org/grpc v1.76.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
 
