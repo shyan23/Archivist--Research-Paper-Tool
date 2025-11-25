@@ -372,6 +372,121 @@ class GraphBuilder:
 
         logger.warning("⚠️  Graph cleared!")
 
+    async def add_similarity_edge(self, paper1_title: str, paper2_title: str, similarity_score: float):
+        """Add SIMILAR_TO relationship between papers"""
+        query = """
+        MATCH (p1:Paper {title: $paper1_title})
+        MATCH (p2:Paper {title: $paper2_title})
+        MERGE (p1)-[r:SIMILAR_TO]-(p2)
+        SET r.similarity = $similarity_score
+        RETURN r
+        """
+
+        async with self.driver.session(database=self.database) as session:
+            await session.run(query, {
+                "paper1_title": paper1_title,
+                "paper2_title": paper2_title,
+                "similarity_score": similarity_score
+            })
+
+    async def get_similar_papers_from_graph(
+        self,
+        paper_title: str,
+        min_similarity: float = 0.85,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Get similar papers from graph using SIMILAR_TO edges"""
+        query = """
+        MATCH (p1:Paper {title: $paper_title})-[r:SIMILAR_TO]-(p2:Paper)
+        WHERE r.similarity >= $min_similarity
+        RETURN p2.title as title,
+               p2.year as year,
+               p2.authors as authors,
+               r.similarity as similarity_score
+        ORDER BY r.similarity DESC
+        LIMIT $limit
+        """
+
+        async with self.driver.session(database=self.database) as session:
+            result = await session.run(query, {
+                "paper_title": paper_title,
+                "min_similarity": min_similarity,
+                "limit": limit
+            })
+            records = await result.values()
+
+            return [{
+                "title": record[0],
+                "year": record[1],
+                "authors": record[2] if record[2] else [],
+                "similarity_score": record[3]
+            } for record in records]
+
+    async def find_path_between_papers(
+        self,
+        paper1_title: str,
+        paper2_title: str,
+        max_hops: int = 5
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Find shortest path between two papers in citation network"""
+        query = """
+        MATCH path = shortestPath(
+            (p1:Paper {title: $paper1_title})-[*1..$max_hops]-(p2:Paper {title: $paper2_title})
+        )
+        RETURN [node in nodes(path) | node.title] as paper_path,
+               [rel in relationships(path) | type(rel)] as relationship_types
+        """
+
+        async with self.driver.session(database=self.database) as session:
+            result = await session.run(query, {
+                "paper1_title": paper1_title,
+                "paper2_title": paper2_title,
+                "max_hops": max_hops
+            })
+            record = await result.single()
+
+            if not record:
+                return None
+
+            path = []
+            papers = record["paper_path"]
+            rel_types = record["relationship_types"]
+
+            for i, paper in enumerate(papers):
+                path_node = {"paper": paper}
+                if i < len(rel_types):
+                    path_node["relationship"] = rel_types[i]
+                path.append(path_node)
+
+            return path
+
+    async def get_trending_concepts(
+        self,
+        year: int,
+        top_k: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Get trending methods/concepts for a given year"""
+        query = """
+        MATCH (p:Paper {year: $year})-[:USES_METHOD]->(m:Method)
+        WITH m, count(p) as usage_count
+        RETURN m.name as method,
+               usage_count
+        ORDER BY usage_count DESC
+        LIMIT $top_k
+        """
+
+        async with self.driver.session(database=self.database) as session:
+            result = await session.run(query, {
+                "year": year,
+                "top_k": top_k
+            })
+            records = await result.values()
+
+            return [{
+                "method": record[0],
+                "usage_count": record[1]
+            } for record in records]
+
     async def execute_query(self, query_type: str, parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Execute predefined graph queries"""
         queries = {
@@ -396,6 +511,13 @@ class GraphBuilder:
                 WHERE a1 <> a2
                 RETURN DISTINCT a2.name as collaborator, count(p) as joint_papers
                 ORDER BY joint_papers DESC
+            """,
+            "trending_concepts": """
+                MATCH (p:Paper {year: $year})-[:USES_METHOD]->(m:Method)
+                WITH m, count(p) as usage_count
+                RETURN m.name as method, usage_count
+                ORDER BY usage_count DESC
+                LIMIT $limit
             """
         }
 

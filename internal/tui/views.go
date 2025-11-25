@@ -68,6 +68,14 @@ func (m Model) View() string {
 		content = m.settingsMenu.View()
 	case screenDirectorySettings:
 		content = m.renderDirectorySettingsScreen()
+	case screenGraphMenu:
+		content = m.graphMenu.View()
+	case screenGraphDashboard:
+		content = m.renderGraphDashboard()
+	case screenGraphSearch:
+		content = m.renderGraphSearch()
+	case screenGraphMyPapers:
+		content = m.renderGraphMyPapers()
 	}
 
 	// Footer with help (add Ctrl+P hint)

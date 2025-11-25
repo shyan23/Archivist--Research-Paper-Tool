@@ -54,6 +54,11 @@ func InitialModel(configPath string) (*Model, error) {
 			action:      "chat",
 		},
 		item{
+			title:       "📊 Explore Knowledge Graph",
+			description: "Browse citations, relationships, and paper connections",
+			action:      "graph_explorer",
+		},
+		item{
 			title:       "📄 Process Single Paper",
 			description: "Select and process one paper",
 			action:      "process_single",
@@ -90,11 +95,13 @@ func InitialModel(configPath string) (*Model, error) {
 		mainMenu:           mainMenu,
 		commandPalette:     NewCommandPalette(),
 		multiSelectIndexes: make(map[int]bool),
+		graphServiceURL:    "http://localhost:8081", // Default graph service URL
 	}
 
 	// Pre-initialize settings menu to avoid blank screen
 	m.loadSettingsMenu()
 	m.loadDirectorySettingsMenu()
+	m.loadGraphMenu()
 
 	return m, nil
 }
@@ -142,6 +149,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settingsMenu.SetSize(w, h)
 		case screenDirectorySettings:
 			m.directorySettingsMenu.SetSize(w, h)
+		case screenGraphMenu:
+			m.graphMenu.SetSize(w, h)
+		case screenGraphDashboard:
+			// Dashboard uses custom rendering, no list to resize
+		case screenGraphSearch:
+			// Search uses custom rendering, no list to resize
+		case screenGraphMyPapers:
+			if m.graphMyPapers.Items() != nil {
+				m.graphMyPapers.SetSize(w, h)
+			}
 		}
 
 		return m, nil
@@ -181,6 +198,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle chat input separately
 		if m.screen == screenChat {
 			return m.handleChatInput(msg)
+		}
+
+		// Handle graph search input separately
+		if m.screen == screenGraphSearch {
+			return m.handleGraphSearchInput(msg)
 		}
 
 		// Handle command palette toggle (Ctrl+P)
@@ -270,6 +292,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.directoryInputMode == "" {
 			m.directorySettingsMenu, cmd = m.directorySettingsMenu.Update(msg)
 		}
+	case screenGraphMenu:
+		m.graphMenu, cmd = m.graphMenu.Update(msg)
+	case screenGraphDashboard:
+		// Dashboard is read-only, no updates needed
+		cmd = nil
+	case screenGraphSearch:
+		// Search input handled separately in key handler
+		cmd = nil
+	case screenGraphMyPapers:
+		if m.graphMyPapers.Items() != nil {
+			m.graphMyPapers, cmd = m.graphMyPapers.Update(msg)
+		}
 	}
 
 	return m, cmd
@@ -306,6 +340,11 @@ func (m Model) executeCommand(action string) (tea.Model, tea.Cmd) {
 		m.screenHistory = []screen{} // Clear history
 	case "quit":
 		return m, tea.Quit
+	case "graph_explorer":
+		m.navigateTo(screenGraphMenu)
+		if m.width > 0 && m.height > 0 {
+			m.graphMenu.SetSize(m.width-4, m.height-8)
+		}
 	case "settings":
 		m.navigateTo(screenSettings)
 		m.loadSettingsMenu()

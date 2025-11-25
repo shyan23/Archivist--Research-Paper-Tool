@@ -29,6 +29,10 @@ const (
 	screenSimilarSearchResults // Results from similar search
 	screenSettings             // Settings menu
 	screenDirectorySettings    // Configure input/output directories
+	screenGraphMenu            // Knowledge graph explorer menu
+	screenGraphDashboard       // Graph statistics dashboard
+	screenGraphSearch          // Semantic graph search
+	screenGraphMyPapers        // User's papers in the graph
 )
 
 // Model represents the TUI application state
@@ -94,6 +98,14 @@ type Model struct {
 	browserItems            []string          // Items in current directory
 	browserSelectedIndex    int               // Selected item index in browser
 	browserShowHidden       bool              // Show hidden files/folders
+
+	// Graph explorer fields
+	graphMenu               list.Model        // Graph explorer menu
+	graphServiceURL         string            // Graph service URL
+	graphStats              map[string]interface{}  // Graph statistics
+	graphSearchQuery        string            // Semantic search query
+	graphSearchResults      list.Model        // Semantic search results
+	graphMyPapers           list.Model        // User's papers in graph
 }
 
 // Item represents a menu item

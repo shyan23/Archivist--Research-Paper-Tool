@@ -45,6 +45,8 @@ graph_builder: Optional[GraphBuilder] = None
 metadata_extractor: Optional[MetadataExtractor] = None
 worker_queue: Optional[WorkerQueue] = None
 kafka_consumer: Optional[GraphKafkaConsumer] = None
+semantic_search: Optional = None  # Import at runtime
+citation_analyzer: Optional = None  # Import at runtime
 
 
 # ============================================================================
@@ -103,7 +105,7 @@ class QueryRequest(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    global graph_builder, metadata_extractor, worker_queue, kafka_consumer
+    global graph_builder, metadata_extractor, worker_queue, kafka_consumer, semantic_search, citation_analyzer
 
     logger.info("🚀 Starting Graph Microservice...")
 
@@ -151,6 +153,22 @@ async def startup_event():
         )
         await kafka_consumer.start()
         logger.info("✅ Kafka consumer started")
+
+        # Initialize semantic search engine
+        logger.info("Initializing semantic search engine...")
+        from .semantic_search import SemanticSearchEngine
+        qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
+        semantic_search = SemanticSearchEngine(
+            qdrant_url=qdrant_url,
+            collection_name="papers"
+        )
+        logger.info("✅ Semantic search ready")
+
+        # Initialize citation analyzer
+        logger.info("Initializing citation impact analyzer...")
+        from .citation_analysis import CitationImpactAnalyzer
+        citation_analyzer = CitationImpactAnalyzer(graph_builder)
+        logger.info("✅ Citation analyzer ready")
 
         logger.info("🎉 Graph Microservice ready!")
 
@@ -400,6 +418,216 @@ async def rebuild_graph():
 
     except Exception as e:
         logger.error(f"Failed to rebuild graph: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# NEW: Semantic Search & Recommendations
+# ============================================================================
+
+@app.post("/api/graph/search/semantic")
+async def semantic_search_papers(query: str, top_k: int = 10, threshold: float = 0.7):
+    """Semantic search for papers using natural language queries"""
+    if not semantic_search:
+        raise HTTPException(status_code=503, detail="Semantic search not initialized")
+
+    try:
+        results = await semantic_search.search_similar_papers(query, top_k, threshold)
+
+        return {
+            "status": "success",
+            "query": query,
+            "results": results,
+            "count": len(results)
+        }
+
+    except Exception as e:
+        logger.error(f"Semantic search failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/graph/recommend/{paper_title}")
+async def recommend_similar_papers(paper_title: str, top_k: int = 10):
+    """Get paper recommendations based on similarity"""
+    if not semantic_search:
+        raise HTTPException(status_code=503, detail="Semantic search not initialized")
+
+    try:
+        similar = await semantic_search.find_similar_to_paper(
+            paper_title=paper_title,
+            top_k=top_k,
+            score_threshold=0.85
+        )
+
+        return {
+            "status": "success",
+            "source_paper": paper_title,
+            "recommendations": similar,
+            "count": len(similar)
+        }
+
+    except Exception as e:
+        logger.error(f"Recommendation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# NEW: Citation Impact Analysis
+# ============================================================================
+
+@app.get("/api/graph/citations/h-index/{author_name}")
+async def get_author_h_index(author_name: str):
+    """Calculate H-index for an author"""
+    if not citation_analyzer:
+        raise HTTPException(status_code=503, detail="Citation analyzer not initialized")
+
+    try:
+        h_index_data = await citation_analyzer.calculate_h_index(author_name)
+
+        return {
+            "status": "success",
+            "author": author_name,
+            **h_index_data
+        }
+
+    except Exception as e:
+        logger.error(f"H-index calculation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/graph/citations/timeline/{paper_title}")
+async def get_citation_timeline(paper_title: str):
+    """Get citation count over time for a paper"""
+    if not citation_analyzer:
+        raise HTTPException(status_code=503, detail="Citation analyzer not initialized")
+
+    try:
+        timeline = await citation_analyzer.get_citation_timeline(paper_title)
+
+        return {
+            "status": "success",
+            **timeline
+        }
+
+    except Exception as e:
+        logger.error(f"Citation timeline failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/graph/citations/influential/{paper_title}")
+async def get_influential_citations(paper_title: str, top_k: int = 10):
+    """Get most influential citations for a paper"""
+    if not citation_analyzer:
+        raise HTTPException(status_code=503, detail="Citation analyzer not initialized")
+
+    try:
+        influential = await citation_analyzer.get_influential_citations(paper_title, top_k)
+
+        return {
+            "status": "success",
+            "paper": paper_title,
+            "influential_citations": influential,
+            "count": len(influential)
+        }
+
+    except Exception as e:
+        logger.error(f"Influential citations failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/graph/citations/contexts/{paper_title}")
+async def get_citation_contexts(paper_title: str):
+    """Get why papers cite this one (categorized by theme)"""
+    if not citation_analyzer:
+        raise HTTPException(status_code=503, detail="Citation analyzer not initialized")
+
+    try:
+        contexts = await citation_analyzer.extract_citation_contexts(paper_title)
+
+        total_contexts = sum(len(v) for v in contexts.values())
+
+        return {
+            "status": "success",
+            "paper": paper_title,
+            "total_contexts": total_contexts,
+            "contexts": contexts
+        }
+
+    except Exception as e:
+        logger.error(f"Citation contexts failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/graph/citations/analysis/{paper_title}")
+async def get_complete_citation_analysis(paper_title: str):
+    """Get comprehensive citation analysis (all metrics combined)"""
+    if not citation_analyzer:
+        raise HTTPException(status_code=503, detail="Citation analyzer not initialized")
+
+    try:
+        analysis = await citation_analyzer.get_complete_citation_analysis(paper_title)
+
+        return {
+            "status": "success",
+            **analysis
+        }
+
+    except Exception as e:
+        logger.error(f"Complete citation analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# NEW: Advanced Graph Queries
+# ============================================================================
+
+@app.get("/api/graph/path")
+async def find_connection_path(paper1: str, paper2: str, max_hops: int = 5):
+    """Find shortest path between two papers in citation network"""
+    if not graph_builder:
+        raise HTTPException(status_code=503, detail="Graph builder not initialized")
+
+    try:
+        path = await graph_builder.find_path_between_papers(paper1, paper2, max_hops)
+
+        if not path:
+            return {
+                "status": "not_found",
+                "message": f"No path found between '{paper1}' and '{paper2}' within {max_hops} hops",
+                "path": None
+            }
+
+        return {
+            "status": "success",
+            "paper1": paper1,
+            "paper2": paper2,
+            "path": path,
+            "hops": len(path) - 1
+        }
+
+    except Exception as e:
+        logger.error(f"Path finding failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/graph/trending/{year}")
+async def get_trending_methods(year: int, top_k: int = 10):
+    """Get trending methods/concepts for a given year"""
+    if not graph_builder:
+        raise HTTPException(status_code=503, detail="Graph builder not initialized")
+
+    try:
+        trending = await graph_builder.get_trending_concepts(year, top_k)
+
+        return {
+            "status": "success",
+            "year": year,
+            "trending_methods": trending,
+            "count": len(trending)
+        }
+
+    except Exception as e:
+        logger.error(f"Trending methods failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

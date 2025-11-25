@@ -16,5 +16,11 @@ redis==5.0.1
 # Google Gemini AI
 google-generativeai==0.3.2
 
+# Vector Database
+qdrant-client==1.7.0
+
+# Numerical Computing
+numpy==1.26.3
+
 # Utilities
 python-dotenv==1.0.0

@@ -189,6 +189,13 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 	} else if m.screen == screenSimilarFactorsEdit {
 		// Don't handle enter here - handled separately in Update
 		return m, nil
+	} else if m.screen == screenGraphMenu {
+		// Handle graph menu selection
+		selectedItem := m.graphMenu.SelectedItem()
+		if selectedItem != nil {
+			action := selectedItem.(item).action
+			m.handleGraphMenuAction(action)
+		}
 	}
 
 	return m, nil

@@ -42,6 +42,7 @@ explanations of methodologies, breakthroughs, and results.`,
 		NewSearchCommand(),
 		NewSimilarCommand(),
 		NewCitationsCommand(),
+		NewGraphCommand(),
 	)
 
 	return rootCmd
