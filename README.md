@@ -5,57 +5,91 @@
 **Transform AI/ML research papers into student-friendly LaTeX reports using Gemini AI**
 *A comprehensive platform for academic paper analysis, knowledge graph building, and interactive Q&A*
 
-## 🌟 Key Features
+## ✨ Features
 
-- 🎨 **Interactive TUI**: Beautiful terminal interface for browsing and processing papers
-- 🤖 **AI-Powered Analysis**: Uses Google Gemini API for deep paper analysis
-- 📚 **Student-Friendly**: Generates detailed explanations targeted at CS students
-- ⚡ **Parallel Processing**: Process multiple papers concurrently with worker pools
-- 🔄 **Smart Deduplication**: MD5 hashing prevents reprocessing of papers
-- 📝 **LaTeX Output**: Generates professional LaTeX documents and compiles to PDF
-- 🎯 **Multi-Stage Analysis**: Optional agentic workflow with self-reflection and refinement
-- 📊 **Progress Tracking**: Real-time logging and status monitoring
-- ☸️ **Kubernetes Ready**: Production-ready Kubernetes deployment with autoscaling
-- 🔍 **Knowledge Graph**: Neo4j-based citation network and semantic search
-- 🔎 **Academic Search**: Integrated search across arXiv, OpenReview, and ACL
+- 🎨 **Interactive Terminal UI** - Beautiful interface for browsing and processing papers
+- 🤖 **AI-Powered Analysis** - Deep paper analysis using Google Gemini API
+- 📚 **Student-Friendly Reports** - Generates detailed explanations for CS students
+- ⚡ **Parallel Processing** - Process multiple papers concurrently with worker pools
+- 🔄 **Smart Deduplication** - MD5 hashing prevents reprocessing
+- 📝 **LaTeX Generation** - Professional LaTeX documents compiled to PDF
+- 🎯 **Multi-Stage Analysis** - Optional workflow with self-reflection and refinement
+- 📊 **Progress Tracking** - Real-time logging and status monitoring
+- ☸️ **Kubernetes Support** - Local deployment with autoscaling capabilities
+- 🔍 **Knowledge Graph** - Neo4j-based citation networks and semantic search
+- 🔎 **Academic Search** - Integrated search across arXiv, OpenReview, and ACL
 
 ## 📦 Deployment Options
 
-### 🖥️ Local Deployment
-Perfect for single-user, development, or small-scale usage.
-- **Setup Time**: ~5 minutes with bootstrap script
-- **Resource Usage**: Minimal (runs on laptop)
-- **Best For**: Personal use, development, testing
+Archivist supports two deployment modes optimized for different use cases:
 
-### ☸️ Kubernetes Deployment (Local/Offline)
-**Scalable deployment on your personal machine** - not for cloud!
-- **Setup Time**: ~10 minutes
-- **Resource Usage**: Your laptop (4+ CPU cores, 8GB+ RAM recommended)
-- **Best For**: Learning Kubernetes, local autoscaling, personal use
-- **Features**: Automatic scaling (1-4 workers), resource management, offline operation
-- **Platforms**: Minikube, Kind, Docker Desktop
+### 🖥️ Local Deployment (Recommended for Most Users)
 
-**→ [Local Kubernetes Guide](docs/KUBERNETES_LOCAL_DEPLOYMENT.md)**
+**Quick Start**: Perfect for individual researchers and students.
 
-Quick Local Kubernetes Deploy:
 ```bash
-# One-command setup for local Kubernetes
-./scripts/k8s-local-setup.sh
+# Automated setup - installs all dependencies
+./scripts/bootstrap.sh
 
-# Automatically detects Minikube/Kind/Docker Desktop
-# Sets up autoscaling (1-4 workers based on CPU/memory)
-# All data stored locally on your machine
-
-# Manage your deployment
-./scripts/k8s-manage.sh status
-./scripts/k8s-manage.sh scale archivist-worker 4
+# Or use the Go command
+./archivist setup
 ```
 
-**Why Kubernetes locally?**
-- ✅ Automatic scaling based on workload
-- ✅ Better resource management
-- ✅ Learn Kubernetes hands-on
-- ✅ Completely offline after setup
+**Specifications:**
+- **Setup Time**: ~5 minutes
+- **Resource Usage**: Minimal (2GB RAM, 2 CPU cores)
+- **Best For**: Personal use, development, quick processing
+
+### ☸️ Kubernetes Deployment (Advanced)
+
+**Local-first Kubernetes**: Designed for offline, personal machine deployment with intelligent autoscaling.
+
+> **Note**: This Kubernetes setup is specifically designed for **local/offline environments** (Minikube, Kind, Docker Desktop). It is **not** intended for cloud production deployments.
+
+**Quick Deploy:**
+
+```bash
+# One-command Kubernetes setup
+./scripts/k8s-local-setup.sh
+```
+
+**Specifications:**
+- **Setup Time**: ~10 minutes (includes service startup)
+- **Resource Requirements**: 4+ CPU cores, 8GB+ RAM
+- **Autoscaling**: 1-4 worker pods based on CPU/memory utilization
+- **Supported Platforms**: Minikube, Kind, Docker Desktop Kubernetes
+- **Data Storage**: Local persistent volumes (all data stays on your machine)
+
+**Management Commands:**
+
+```bash
+# View cluster status
+./scripts/k8s-manage.sh status
+
+# Scale workers manually
+./scripts/k8s-manage.sh scale archivist-worker 4
+
+# View logs
+./scripts/k8s-manage.sh logs archivist-worker
+
+# Port forward services
+./scripts/k8s-manage.sh port-forward neo4j
+
+# Monitor autoscaling
+./scripts/k8s-manage.sh hpa
+```
+
+**Why Use Kubernetes Locally?**
+
+| Benefit | Description |
+|---------|-------------|
+| **Auto-scaling** | Automatically adjusts worker count based on workload (1-4 pods) |
+| **Resource Management** | Better CPU and memory allocation across services |
+| **Service Isolation** | Each service runs in isolated containers |
+| **Learning Environment** | Hands-on Kubernetes experience without cloud costs |
+| **Offline Operation** | Fully functional without internet after initial setup |
+
+**Detailed Documentation**: See [Local Kubernetes Deployment Guide](docs/KUBERNETES_LOCAL_DEPLOYMENT.md) for complete setup instructions, troubleshooting, and advanced configuration
 
 </div>
 
