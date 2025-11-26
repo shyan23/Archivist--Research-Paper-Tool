@@ -5,8 +5,6 @@
 **Transform AI/ML research papers into student-friendly LaTeX reports using Gemini AI**  
 *A comprehensive platform for academic paper analysis, knowledge graph building, and interactive Q&A*
 
-<<<<<<< HEAD
-=======
 - 🎨 **Interactive TUI**: Beautiful terminal interface for browsing and processing papers
 - 🤖 **AI-Powered Analysis**: Uses Google Gemini API with agentic workflows for deep paper analysis
 - 📚 **Student-Friendly**: Generates detailed explanations targeted at CS students
