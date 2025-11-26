@@ -22,7 +22,7 @@ func (m *Model) loadLibraryPapers() {
 
 		items[i] = item{
 			title:       basename,
-			description: file,
+			description: filepath.Dir(file),  // Show only directory, not full path with filename
 			action:      file,
 		}
 	}
@@ -51,7 +51,7 @@ func (m *Model) loadProcessedPapers() {
 
 		items = append(items, item{
 			title:       basename,
-			description: file,
+			description: filepath.Dir(file),  // Show only directory, not full path with filename
 			action:      file,
 		})
 	}
@@ -80,7 +80,7 @@ func (m *Model) loadPapersForSelection() {
 
 		items = append(items, item{
 			title:       basename,
-			description: file,
+			description: filepath.Dir(file),  // Show only directory, not full path with filename
 			action:      file,
 		})
 	}
@@ -113,7 +113,7 @@ func (m *Model) loadPapersForMultiSelection() {
 
 		items = append(items, item{
 			title:       basename,
-			description: file,
+			description: filepath.Dir(file),  // Show only directory, not full path with filename
 			action:      file,
 		})
 	}

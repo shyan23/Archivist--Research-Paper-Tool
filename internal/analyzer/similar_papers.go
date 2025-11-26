@@ -57,7 +57,8 @@ NOVEL_CONTRIBUTIONS: [Comma-separated list of what makes this paper unique]
 Be specific and technical. Use actual terminology from the paper.`
 
 	startTime := time.Now()
-	result, err := spf.analyzer.client.AnalyzePDFWithVision(ctx, pdfPath, prompt)
+	// Use retry logic with exponential backoff (max 5 attempts)
+	result, err := spf.analyzer.client.AnalyzePDFWithVisionRetry(ctx, pdfPath, prompt, 5)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract essence: %w", err)
 	}

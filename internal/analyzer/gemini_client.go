@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/generative-ai-go/genai"
@@ -117,7 +118,7 @@ func (gc *GeminiClient) AnalyzePDFWithVision(ctx context.Context, pdfPath, promp
 	return result, nil
 }
 
-// GenerateWithRetry generates content with retry logic
+// GenerateWithRetry generates content with retry logic (deprecated - use GenerateTextRetry)
 func (gc *GeminiClient) GenerateWithRetry(ctx context.Context, prompt string, maxAttempts int, backoffMultiplier int, initialDelayMs int) (string, error) {
 	var lastErr error
 
@@ -131,6 +132,86 @@ func (gc *GeminiClient) GenerateWithRetry(ctx context.Context, prompt string, ma
 
 		if attempt < maxAttempts {
 			delay := time.Duration(initialDelayMs*(1<<uint(attempt-1))) * time.Millisecond
+			time.Sleep(delay)
+		}
+	}
+
+	return "", fmt.Errorf("failed after %d attempts: %w", maxAttempts, lastErr)
+}
+
+// GenerateTextRetry generates text with retry logic and exponential backoff
+func (gc *GeminiClient) GenerateTextRetry(ctx context.Context, prompt string, maxAttempts int) (string, error) {
+	var lastErr error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		result, err := gc.GenerateText(ctx, prompt)
+		if err == nil {
+			return result, nil
+		}
+
+		lastErr = err
+
+		// Check if it's a quota error
+		errStr := err.Error()
+		isQuotaError := strings.Contains(errStr, "quota") ||
+			strings.Contains(errStr, "QuotaFailure") ||
+			strings.Contains(errStr, "rate limit") ||
+			strings.Contains(errStr, "RESOURCE_EXHAUSTED")
+
+		if attempt < maxAttempts {
+			// Exponential backoff: 2, 4, 8, 16, 32, 64 seconds
+			delaySeconds := 1 << uint(attempt) // 2^attempt
+
+			// For quota errors, use longer delays (start at 48 seconds as shown in error)
+			if isQuotaError && delaySeconds < 48 {
+				delaySeconds = 48
+			}
+
+			delay := time.Duration(delaySeconds) * time.Second
+
+			fmt.Printf("⚠️  API call failed (attempt %d/%d): %v\n", attempt, maxAttempts, err)
+			fmt.Printf("   Retrying in %v...\n", delay)
+
+			time.Sleep(delay)
+		}
+	}
+
+	return "", fmt.Errorf("failed after %d attempts: %w", maxAttempts, lastErr)
+}
+
+// AnalyzePDFWithVisionRetry analyzes a PDF using multimodal capabilities with retry logic
+func (gc *GeminiClient) AnalyzePDFWithVisionRetry(ctx context.Context, pdfPath, prompt string, maxAttempts int) (string, error) {
+	var lastErr error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		result, err := gc.AnalyzePDFWithVision(ctx, pdfPath, prompt)
+		if err == nil {
+			return result, nil
+		}
+
+		lastErr = err
+
+		// Check if it's a quota error
+		errStr := err.Error()
+		isQuotaError := strings.Contains(errStr, "quota") ||
+			strings.Contains(errStr, "QuotaFailure") ||
+			strings.Contains(errStr, "rate limit") ||
+			strings.Contains(errStr, "RESOURCE_EXHAUSTED")
+
+		if attempt < maxAttempts {
+			// Exponential backoff: 2, 4, 8, 16, 32, 64 seconds
+			delaySeconds := 1 << uint(attempt) // 2^attempt
+
+			// For quota errors, use longer delays (start at 48 seconds as shown in error)
+			if isQuotaError && delaySeconds < 48 {
+				delaySeconds = 48
+			}
+
+			delay := time.Duration(delaySeconds) * time.Second
+
+			fmt.Printf("⚠️  API call failed (attempt %d/%d): %v\n", attempt, maxAttempts, err)
+			fmt.Printf("   Retrying in %v...\n", delay)
+
 			time.Sleep(delay)
 		}
 	}

@@ -66,7 +66,8 @@ IS_FOUNDATIONAL: YES
 Be thorough. Extract ALL cited papers, even if only mentioned once.`
 
 	startTime := time.Now()
-	result, err := ce.analyzer.client.AnalyzePDFWithVision(ctx, pdfPath, prompt)
+	// Use retry logic with up to 5 attempts
+	result, err := ce.analyzer.client.AnalyzePDFWithVisionRetry(ctx, pdfPath, prompt, 5)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract citations: %w", err)
 	}
@@ -208,7 +209,8 @@ Output format:
 
 Be accurate - count all citations, including in-text citations and reference mentions.`, strings.Join(titles, "\n"))
 
-	result, err := ce.analyzer.client.AnalyzePDFWithVision(ctx, pdfPath, countPrompt)
+	// Use retry logic with up to 3 attempts
+	result, err := ce.analyzer.client.AnalyzePDFWithVisionRetry(ctx, pdfPath, countPrompt, 3)
 	if err != nil {
 		log.Printf("Warning: Could not enrich with citation counts: %v", err)
 		return citations

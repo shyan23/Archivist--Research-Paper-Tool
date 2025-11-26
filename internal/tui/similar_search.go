@@ -142,7 +142,7 @@ func (m *Model) handleSearchModeSelection() (tea.Model, tea.Cmd) {
 		for i, paper := range papers {
 			items[i] = item{
 				title:       filepath.Base(paper),
-				description: paper,
+				description: filepath.Dir(paper),  // Show only directory, not full path with filename
 				action:      paper,
 			}
 		}
