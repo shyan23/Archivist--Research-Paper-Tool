@@ -19,6 +19,7 @@ type PDFParser struct {
 // GeminiAnalyzer interface for Gemini client
 type GeminiAnalyzer interface {
 	AnalyzePDFWithVision(ctx context.Context, pdfPath, prompt string) (string, error)
+	AnalyzePDFWithVisionRetry(ctx context.Context, pdfPath, prompt string, maxAttempts int) (string, error)
 }
 
 // NewPDFParser creates a new PDF parser
@@ -44,7 +45,8 @@ ABSTRACT: [abstract text]
 
 Be concise and accurate.`
 
-	response, err := p.geminiClient.AnalyzePDFWithVision(ctx, pdfPath, prompt)
+	// Use retry logic with up to 3 attempts
+	response, err := p.geminiClient.AnalyzePDFWithVisionRetry(ctx, pdfPath, prompt, 3)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract metadata: %w", err)
 	}

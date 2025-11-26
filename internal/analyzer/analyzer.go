@@ -60,7 +60,8 @@ func (a *Analyzer) simplAnalysis(ctx context.Context, pdfPath string) (string, e
 	log.Printf("     → Calling Gemini API (%s)...", a.config.Gemini.Model)
 	startTime := time.Now()
 
-	latexContent, err := a.client.AnalyzePDFWithVision(ctx, pdfPath, AnalysisPrompt)
+	// Use retry logic with up to 5 attempts
+	latexContent, err := a.client.AnalyzePDFWithVisionRetry(ctx, pdfPath, AnalysisPrompt, 5)
 	if err != nil {
 		return "", fmt.Errorf("analysis failed: %w", err)
 	}
@@ -92,7 +93,8 @@ func (a *Analyzer) agenticAnalysis(ctx context.Context, pdfPath string) (string,
 	defer stage1Client.Close()
 
 	log.Printf("     → Calling Gemini API (%s) for paper analysis...", stage1Config.Model)
-	latexContent, err = stage1Client.AnalyzePDFWithVision(ctx, pdfPath, AnalysisPrompt)
+	// Use retry logic with up to 5 attempts
+	latexContent, err = stage1Client.AnalyzePDFWithVisionRetry(ctx, pdfPath, AnalysisPrompt, 5)
 	if err != nil {
 		return "", fmt.Errorf("stage 1 analysis failed: %w", err)
 	}
@@ -121,7 +123,8 @@ If it's already excellent, output: APPROVED
 
 Output:`, latexContent)
 
-			reflection, err := a.client.GenerateText(ctx, reflectionPrompt)
+			// Use retry logic with up to 3 attempts for reflection
+			reflection, err := a.client.GenerateTextRetry(ctx, reflectionPrompt, 3)
 			if err != nil {
 				log.Printf("       ⚠️  Reflection iteration %d failed: %v (continuing with current version)", i+1, err)
 				break
@@ -164,7 +167,8 @@ func (a *Analyzer) validateLatexSyntax(ctx context.Context, latexContent string)
 
 	validationPrompt := fmt.Sprintf(SyntaxValidationPrompt, latexContent)
 
-	result, err := a.client.GenerateText(ctx, validationPrompt)
+	// Use retry logic with up to 3 attempts for validation
+	result, err := a.client.GenerateTextRetry(ctx, validationPrompt, 3)
 	if err != nil {
 		return latexContent, fmt.Errorf("syntax validation API call failed: %w", err)
 	}

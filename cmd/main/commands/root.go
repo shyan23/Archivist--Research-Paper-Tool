@@ -28,6 +28,7 @@ explanations of methodologies, breakthroughs, and results.`,
 
 	// Add subcommands
 	rootCmd.AddCommand(
+		NewSetupCommand(),      // Setup/bootstrap command
 		NewProcessCommand(),
 		NewListCommand(),
 		NewStatusCommand(),
