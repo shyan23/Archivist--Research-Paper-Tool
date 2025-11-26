@@ -1,0 +1,85 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graph-service
+  namespace: archivist
+  labels:
+    app: graph-service
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+  selector:
+    app: graph-service
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graph-service
+  namespace: archivist
+spec:
+  replicas: 1  # Start with 1 for local deployment, HPA scales to 2
+  selector:
+    matchLabels:
+      app: graph-service
+  template:
+    metadata:
+      labels:
+        app: graph-service
+    spec:
+      containers:
+      - name: graph-service
+        image: archivist-graph:latest  # Build from services/graph-service/
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8081
+          name: http
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: archivist-config
+              key: KAFKA_BOOTSTRAP_SERVERS
+        - name: NEO4J_URI
+          valueFrom:
+            configMapKeyRef:
+              name: archivist-config
+              key: NEO4J_URI
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: archivist-secrets
+              key: NEO4J_PASSWORD
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: archivist-config
+              key: REDIS_URL
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: archivist-secrets
+              key: GEMINI_API_KEY
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 5

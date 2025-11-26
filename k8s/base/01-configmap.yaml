@@ -1,0 +1,98 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: archivist-config
+  namespace: archivist
+data:
+  # Archivist configuration
+  config.yaml: |
+    input_dir: "/data/lib"
+    tex_output_dir: "/data/tex_files"
+    report_output_dir: "/data/reports"
+
+    processing:
+      max_workers: 4
+      batch_size: 10
+      timeout_per_paper: 600
+
+    gemini:
+      model: "models/gemini-2.0-flash-exp"
+      max_tokens: 8000
+      temperature: 0.3
+
+      agentic:
+        enabled: true
+        max_iterations: 1
+        self_reflection: false
+        multi_stage_analysis: false
+
+        retry:
+          max_attempts: 3
+          backoff_multiplier: 2
+          initial_delay_ms: 1000
+
+    latex:
+      compiler: "pdflatex"
+      engine: "latexmk"
+      clean_aux: true
+
+    # Knowledge Graph settings
+    graph:
+      enabled: true
+
+      neo4j:
+        uri: "bolt://neo4j-service:7687"
+        username: "neo4j"
+        database: "archivist"
+
+      citation_extraction:
+        enabled: true
+        prioritize_in_text: true
+        confidence_threshold: 0.7
+
+      search:
+        vector_weight: 0.5
+        graph_weight: 0.3
+        keyword_weight: 0.2
+
+    # Qdrant vector database
+    qdrant:
+      host: "qdrant-service"
+      port: 6333
+      grpc_port: 6334
+      collection_name: "archivist_papers"
+      use_grpc: true
+
+      vector:
+        size: 768
+        distance: "Cosine"
+        on_disk: false
+
+      chunking:
+        enabled: true
+        chunk_size: 512
+        chunk_overlap: 50
+
+    # Redis cache
+    cache:
+      enabled: true
+      type: "redis"
+      ttl: 720
+      redis:
+        addr: "redis-service:6379"
+        password: ""
+        db: 0
+
+    # Logging
+    logging:
+      level: "info"
+      file: "/data/logs/processing.log"
+      console: true
+
+  # Service URLs
+  NEO4J_URI: "bolt://neo4j-service:7687"
+  QDRANT_HOST: "qdrant-service"
+  QDRANT_PORT: "6333"
+  REDIS_URL: "redis://redis-service:6379"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-service:9092"

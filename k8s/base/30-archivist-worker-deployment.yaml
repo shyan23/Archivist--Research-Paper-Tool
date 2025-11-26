@@ -1,0 +1,115 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: archivist-worker-service
+  namespace: archivist
+  labels:
+    app: archivist-worker
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: archivist-worker
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archivist-worker
+  namespace: archivist
+spec:
+  replicas: 1  # Start with 1 for local deployment, HPA will scale up to 4
+  selector:
+    matchLabels:
+      app: archivist-worker
+  template:
+    metadata:
+      labels:
+        app: archivist-worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: worker
+        image: archivist:latest  # Build and push your Docker image
+        imagePullPolicy: Always
+        env:
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: archivist-secrets
+              key: GEMINI_API_KEY
+        - name: NEO4J_URI
+          valueFrom:
+            configMapKeyRef:
+              name: archivist-config
+              key: NEO4J_URI
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: archivist-secrets
+              key: NEO4J_PASSWORD
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: archivist-config
+              key: REDIS_URL
+        - name: QDRANT_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: archivist-config
+              key: QDRANT_HOST
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: archivist-config
+              key: KAFKA_BOOTSTRAP_SERVERS
+        - name: MODE
+          value: "worker"  # Run in worker mode
+        - name: WORKER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: shared-data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: archivist-config
+      - name: shared-data
+        persistentVolumeClaim:
+          claimName: archivist-data-pvc

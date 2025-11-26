@@ -1,0 +1,84 @@
+---
+# Neo4j Data PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: neo4j-data-pvc
+  namespace: archivist
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-storage  # For local Kubernetes (Minikube, Kind, K3s)
+
+---
+# Qdrant Storage PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qdrant-storage-pvc
+  namespace: archivist
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-storage
+
+---
+# Redis Data PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data-pvc
+  namespace: archivist
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: local-storage
+
+---
+# Kafka Data PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-data-pvc
+  namespace: archivist
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-storage
+
+---
+# Archivist Shared Data PVC (for papers, reports, etc.)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: archivist-data-pvc
+  namespace: archivist
+spec:
+  accessModes:
+    - ReadWriteOnce  # For local deployment, use hostPath binding
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: local-storage
+
+---
+# Local Storage Class for offline deployment
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner  # No cloud provisioner
+volumeBindingMode: WaitForFirstConsumer    # Bind when pod is scheduled
+reclaimPolicy: Retain                       # Keep data after PVC deletion

@@ -1,0 +1,61 @@
+---
+# Ingress for external access (optional)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: archivist-ingress
+  namespace: archivist
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # If using cert-manager
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx  # Change based on your ingress controller
+  tls:
+  - hosts:
+    - archivist.yourdomain.com
+    secretName: archivist-tls
+  rules:
+  - host: archivist.yourdomain.com
+    http:
+      paths:
+      # Neo4j Browser
+      - path: /neo4j
+        pathType: Prefix
+        backend:
+          service:
+            name: neo4j-service
+            port:
+              number: 7474
+      # Qdrant Dashboard
+      - path: /qdrant
+        pathType: Prefix
+        backend:
+          service:
+            name: qdrant-service
+            port:
+              number: 6333
+      # Search API
+      - path: /api/search
+        pathType: Prefix
+        backend:
+          service:
+            name: search-service
+            port:
+              number: 8000
+      # Graph Service API
+      - path: /api/graph
+        pathType: Prefix
+        backend:
+          service:
+            name: graph-service
+            port:
+              number: 8081
+      # Worker API
+      - path: /api/worker
+        pathType: Prefix
+        backend:
+          service:
+            name: archivist-worker-service
+            port:
+              number: 8080
