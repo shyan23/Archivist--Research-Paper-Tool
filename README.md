@@ -5,6 +5,58 @@
 **Transform AI/ML research papers into student-friendly LaTeX reports using Gemini AI**  
 *A comprehensive platform for academic paper analysis, knowledge graph building, and interactive Q&A*
 
+<<<<<<< HEAD
+=======
+- 🎨 **Interactive TUI**: Beautiful terminal interface for browsing and processing papers
+- 🤖 **AI-Powered Analysis**: Uses Google Gemini API with agentic workflows for deep paper analysis
+- 📚 **Student-Friendly**: Generates detailed explanations targeted at CS students
+- ⚡ **Parallel Processing**: Process multiple papers concurrently with worker pools
+- 🔄 **Smart Deduplication**: MD5 hashing prevents reprocessing of papers
+- 📝 **LaTeX Output**: Generates professional LaTeX documents and compiles to PDF
+- 🎯 **Multi-Stage Analysis**: Optional agentic workflow with self-reflection and refinement
+- 📊 **Progress Tracking**: Real-time logging and status monitoring
+- ☸️ **Kubernetes Ready**: Production-ready Kubernetes deployment with autoscaling
+- 🔍 **Knowledge Graph**: Neo4j-based citation network and semantic search
+- 🔎 **Academic Search**: Integrated search across arXiv, OpenReview, and ACL
+
+## 📦 Deployment Options
+
+### 🖥️ Local Deployment
+Perfect for single-user, development, or small-scale usage.
+- **Setup Time**: ~5 minutes with bootstrap script
+- **Resource Usage**: Minimal (runs on laptop)
+- **Best For**: Personal use, development, testing
+
+### ☸️ Kubernetes Deployment (Local/Offline)
+**Scalable deployment on your personal machine** - not for cloud!
+- **Setup Time**: ~10 minutes
+- **Resource Usage**: Your laptop (4+ CPU cores, 8GB+ RAM recommended)
+- **Best For**: Learning Kubernetes, local autoscaling, personal use
+- **Features**: Automatic scaling (1-4 workers), resource management, offline operation
+- **Platforms**: Minikube, Kind, Docker Desktop
+
+**→ [Local Kubernetes Guide](docs/KUBERNETES_LOCAL_DEPLOYMENT.md)**
+
+Quick Local Kubernetes Deploy:
+```bash
+# One-command setup for local Kubernetes
+./scripts/k8s-local-setup.sh
+
+# Automatically detects Minikube/Kind/Docker Desktop
+# Sets up autoscaling (1-4 workers based on CPU/memory)
+# All data stored locally on your machine
+
+# Manage your deployment
+./scripts/k8s-manage.sh status
+./scripts/k8s-manage.sh scale archivist-worker 4
+```
+
+**Why Kubernetes locally?**
+- ✅ Automatic scaling based on workload
+- ✅ Better resource management
+- ✅ Learn Kubernetes hands-on
+- ✅ Completely offline after setup
+>>>>>>> 4af2a73 (Added kubernetes,hadnt tested yet tho)
 
 </div>
 
