@@ -1,0 +1,35 @@
+# Required Go Modules for Knowledge Graph Feature
+# Run these commands to install all dependencies:
+
+# Qdrant Go Client (Vector Database)
+go get github.com/qdrant/go-client
+
+# Neo4j Go Driver (Graph Database) - Already installed
+# go get github.com/neo4j/neo4j-go-driver/v5
+
+# Gemini AI SDK - Already installed
+# go get github.com/google/generative-ai-go/genai
+
+# gRPC for Qdrant
+go get google.golang.org/grpc
+go get google.golang.org/grpc/credentials/insecure
+
+# Update all modules
+go mod tidy
+go mod download
+
+# Verify all dependencies
+go mod verify
+
+# Expected output:
+# all modules verified
+
+# If you see any errors, run:
+# go clean -modcache
+# go mod download
+
+# Your go.mod should include (at minimum):
+# - github.com/qdrant/go-client v1.7.0+
+# - github.com/neo4j/neo4j-go-driver/v5 v5.15.0+
+# - github.com/google/generative-ai-go v0.5.0+
+# - google.golang.org/grpc v1.60.0+

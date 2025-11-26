@@ -7,7 +7,7 @@ import os
 from typing import List, Optional
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -56,6 +56,12 @@ class IndexPaperRequest(BaseModel):
     paper_title: str
     latex_content: str
     pdf_path: Optional[str] = None
+    force_reindex: bool = False
+
+
+class IndexPDFFromPathRequest(BaseModel):
+    pdf_path: str = Field(..., description="Path to PDF file on server")
+    paper_title: Optional[str] = Field(None, description="Optional custom title")
     force_reindex: bool = False
 
 
@@ -205,7 +211,7 @@ async def get_system_info():
 
 @app.post("/index/paper", response_model=IndexPaperResponse)
 async def index_paper(request: IndexPaperRequest, background_tasks: BackgroundTasks):
-    """Index a research paper"""
+    """Index a research paper from LaTeX content"""
     try:
         num_chunks = indexer.index_paper(
             paper_title=request.paper_title,
@@ -223,6 +229,38 @@ async def index_paper(request: IndexPaperRequest, background_tasks: BackgroundTa
 
     except Exception as e:
         logger.error(f"Failed to index paper: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/index/pdf", response_model=IndexPaperResponse)
+async def index_pdf_from_path(request: IndexPDFFromPathRequest):
+    """Index a PDF file from server path (for testing with /lib papers)"""
+    try:
+        # Check if file exists
+        if not Path(request.pdf_path).exists():
+            raise HTTPException(status_code=404, detail=f"PDF file not found: {request.pdf_path}")
+
+        num_chunks = indexer.index_paper_from_pdf(
+            pdf_path=request.pdf_path,
+            paper_title=request.paper_title,
+            force_reindex=request.force_reindex
+        )
+
+        # Get the actual title used
+        from .pdf_utils import extract_title_from_pdf
+        actual_title = request.paper_title or extract_title_from_pdf(request.pdf_path) or Path(request.pdf_path).stem
+
+        return IndexPaperResponse(
+            success=True,
+            paper_title=actual_title,
+            num_chunks=num_chunks,
+            message=f"Successfully indexed PDF ({num_chunks} chunks)"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to index PDF: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

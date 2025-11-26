@@ -47,9 +47,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 
 	ctx := context.Background()
 
-	fmt.Println("\n🔌 Connecting to Redis Stack...")
+	fmt.Println("\n🔌 Connecting to Redis cache...")
 
-	// Initialize Redis client
+	// Initialize Redis client for cache
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     config.Cache.Redis.Addr,
 		Password: config.Cache.Redis.Password,
@@ -59,10 +59,10 @@ func runIndex(cmd *cobra.Command, args []string) error {
 
 	// Test connection
 	if err := redisClient.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("failed to connect to Redis Stack at %s: %w\n\nMake sure Redis Stack is running on port 6380", config.Cache.Redis.Addr, err)
+		return fmt.Errorf("failed to connect to Redis cache at %s: %w\n\nMake sure Redis is running", config.Cache.Redis.Addr, err)
 	}
 
-	fmt.Printf("✅ Connected to Redis Stack at %s\n\n", config.Cache.Redis.Addr)
+	fmt.Printf("✅ Connected to Redis cache at %s\n\n", config.Cache.Redis.Addr)
 
 	// Initialize cache
 	redisCache, err := cache.NewRedisCache(
@@ -84,10 +84,11 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 	defer embedClient.Close()
 
-	// Initialize vector store
-	vectorStore, err := rag.NewVectorStore(redisClient)
+	// Initialize FAISS vector store
+	fmt.Println("📊 Initializing FAISS vector store...")
+	vectorStore, err := rag.NewFAISSVectorStore(config.FAISS.IndexDir)
 	if err != nil {
-		return fmt.Errorf("failed to create vector store: %w", err)
+		return fmt.Errorf("failed to create FAISS vector store: %w", err)
 	}
 
 	// Create indexer

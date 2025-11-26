@@ -19,3 +19,18 @@ docs
 *.fdb_latexmk
 *.fls
 *.synctex.gz
+
+# Python virtual environments
+venv/
+__pycache__/
+*.pyc
+
+# Binaries
+archivist
+main
+
+# Qdrant database
+services/search-engine/data/qdrant/
+/logs
+
+archivist

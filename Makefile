@@ -1,13 +1,14 @@
-.PHONY: help build run test test-unit test-integration test-all test-coverage test-verbose clean docker-build docker-run docker-shell docker-clean all install deps lint format bench
+.PHONY: help build run test test-unit test-integration test-all test-coverage test-verbose clean docker-build docker-run docker-shell docker-clean all install deps lint format bench setup-graph start-services stop-services install-graph-deps
 
 # Default target
 help:
 	@echo "Archivist - Research Paper Helper"
 	@echo ""
 	@echo "Build & Run:"
-	@echo "  make build          - Build native binary"
+	@echo "  make build          - Build archivist binary (./archivist)"
+	@echo "  make build-graph-init - Build graph-init utility (./graph-init)"
 	@echo "  make install        - Install to GOPATH/bin"
-	@echo "  make run            - Run interactive TUI"
+	@echo "  make run            - Run archivist"
 	@echo "  make deps           - Install dependencies"
 	@echo ""
 	@echo "Testing:"
@@ -30,6 +31,12 @@ help:
 	@echo "  make docker-test    - Test in Docker"
 	@echo "  make docker-clean   - Clean Docker artifacts"
 	@echo ""
+	@echo "Knowledge Graph:"
+	@echo "  make install-graph-deps - Install Qdrant Go client and gRPC"
+	@echo "  make setup-graph    - Setup Neo4j, Qdrant, Redis services"
+	@echo "  make start-services - Start knowledge graph services"
+	@echo "  make stop-services  - Stop knowledge graph services"
+	@echo ""
 	@echo "Utilities:"
 	@echo "  make clean          - Clean build artifacts"
 	@echo "  make all            - Build both native and Docker"
@@ -37,11 +44,18 @@ help:
 # Native build targets
 build:
 	@echo "Building native binary..."
-	go build -o rph ./cmd/rph
-	@echo "✅ Build complete: ./rph"
+	go build -o archivist ./cmd/main
+	@echo "✅ Build complete: ./archivist"
+	@echo ""
+	@echo "Run with: ./archivist --help"
+
+build-graph-init:
+	@echo "Building graph-init utility..."
+	go build -o graph-init ./cmd/graph-init
+	@echo "✅ Build complete: ./graph-init"
 
 run: build
-	./rph run
+	./archivist run
 
 # Test targets
 test:
@@ -83,14 +97,57 @@ bench:
 # Code quality targets
 install:
 	@echo "Installing Archivist..."
-	go install ./cmd/rph
-	@echo "✅ Installed to $$(go env GOPATH)/bin/rph"
+	go install ./cmd/main
+	@echo "✅ Installed to $$(go env GOPATH)/bin/main"
+	@echo "Note: Binary name will be 'main'. Consider creating alias: alias archivist='main'"
 
 deps:
 	@echo "Installing dependencies..."
 	go mod download
 	go mod tidy
 	@echo "✅ Dependencies installed!"
+
+# Knowledge Graph specific dependencies
+install-graph-deps:
+	@echo "📦 Installing Knowledge Graph dependencies..."
+	@echo "  - Qdrant Go client"
+	go get github.com/qdrant/go-client
+	@echo "  - gRPC with insecure credentials"
+	go get google.golang.org/grpc/credentials/insecure
+	@echo "  - Tidying modules"
+	go mod tidy
+	@echo "✅ Knowledge Graph dependencies installed!"
+	@echo ""
+	@echo "Dependencies installed:"
+	@echo "  ✓ github.com/qdrant/go-client"
+	@echo "  ✓ github.com/neo4j/neo4j-go-driver/v5 (already present)"
+	@echo "  ✓ github.com/google/generative-ai-go (already present)"
+	@echo "  ✓ google.golang.org/grpc"
+
+# Setup knowledge graph services
+setup-graph:
+	@echo "🧠 Setting up Knowledge Graph services..."
+	@chmod +x scripts/setup-graph.sh
+	@./scripts/setup-graph.sh
+
+# Start services using Docker Compose
+start-services:
+	@echo "🚀 Starting services (Neo4j, Qdrant, Redis)..."
+	docker-compose -f docker-compose-graph.yml up -d
+	@echo "⏳ Waiting for services to be ready..."
+	@sleep 10
+	@echo "✅ Services started!"
+	@echo ""
+	@echo "Service URLs:"
+	@echo "  • Neo4j Browser:  http://localhost:7474 (neo4j / password)"
+	@echo "  • Qdrant Dashboard: http://localhost:6333/dashboard"
+	@echo "  • Redis:          localhost:6379"
+
+# Stop services
+stop-services:
+	@echo "🛑 Stopping services..."
+	docker-compose -f docker-compose-graph.yml down
+	@echo "✅ Services stopped!"
 
 lint:
 	@echo "Running linter..."
@@ -105,7 +162,7 @@ format:
 
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -f rph
+	rm -f archivist graph-init rph
 	rm -f coverage.out coverage.html
 	rm -f tex_files/*.aux tex_files/*.log tex_files/*.out tex_files/*.toc
 	rm -f tex_files/*.fdb_latexmk tex_files/*.fls tex_files/*.synctex.gz
@@ -140,14 +197,14 @@ all: build docker-build
 
 # Quick process
 process: build
-	./rph process lib/
+	./archivist process lib/
 
 docker-process: docker-build
 	docker-compose run --rm archivist process lib/
 
 # List processed papers
 list: build
-	./rph list
+	./archivist list
 
 docker-list: docker-build
 	docker-compose run --rm archivist list

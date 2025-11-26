@@ -39,6 +39,10 @@ explanations of methodologies, breakthroughs, and results.`,
 		NewConfigureCommand(),
 		NewChatCommand(),
 		NewIndexCommand(),
+		NewSearchCommand(),
+		NewSimilarCommand(),
+		NewCitationsCommand(),
+		NewGraphCommand(),
 	)
 
 	return rootCmd

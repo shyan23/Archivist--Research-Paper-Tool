@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  search-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: archivist-search-engine
+    network_mode: "host"
+    volumes:
+      # Persist vector store data
+      - ./data:/app/data
+      # Mount for development (optional - uncomment for hot reload)
+      # - ./app:/app/app
+    environment:
+      # Gemini API key (set via .env file or directly)
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # Redis URL (using host network mode, so localhost works)
+      - REDIS_URL=redis://localhost:6379
+      # Optional: Override default settings
+      - QDRANT_PATH=/app/data/qdrant
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

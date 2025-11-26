@@ -2,11 +2,26 @@ package tui
 
 import (
 	"archivist/internal/app"
+	"archivist/internal/ui"
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// showSplashScreen displays animated splash and welcome message
+func showSplashScreen(configPath string) {
+	// Show new Japanese minimalist animated splash
+	ui.AnimatedSplash()
+
+	// Load config to show directories and then display welcome
+	config, err := app.LoadConfig(configPath)
+	if err == nil {
+		ui.ShowWelcomeMessage(config.InputDir, config.ReportOutputDir)
+		time.Sleep(2 * time.Second)
+	}
+}
 
 // InitialModel creates a new TUI model
 func InitialModel(configPath string) (*Model, error) {
@@ -18,6 +33,11 @@ func InitialModel(configPath string) (*Model, error) {
 
 	// Create main menu items
 	items := []list.Item{
+		item{
+			title:       "🔍 Search Papers",
+			description: "Search for research papers from arXiv, OpenReview, and ACL",
+			action:      "search_papers",
+		},
 		item{
 			title:       "📚 View All Papers in Library",
 			description: "Browse all PDF files in the lib folder",
@@ -34,6 +54,11 @@ func InitialModel(configPath string) (*Model, error) {
 			action:      "chat",
 		},
 		item{
+			title:       "📊 Explore Knowledge Graph",
+			description: "Browse citations, relationships, and paper connections",
+			action:      "graph_explorer",
+		},
+		item{
 			title:       "📄 Process Single Paper",
 			description: "Select and process one paper",
 			action:      "process_single",
@@ -47,6 +72,11 @@ func InitialModel(configPath string) (*Model, error) {
 			title:       "🚀 Process All Papers",
 			description: "Process all papers in the lib folder",
 			action:      "process_all",
+		},
+		item{
+			title:       "⚙️  Settings",
+			description: "Configure directories and application settings",
+			action:      "settings",
 		},
 	}
 
@@ -65,7 +95,13 @@ func InitialModel(configPath string) (*Model, error) {
 		mainMenu:           mainMenu,
 		commandPalette:     NewCommandPalette(),
 		multiSelectIndexes: make(map[int]bool),
+		graphServiceURL:    "http://localhost:8081", // Default graph service URL
 	}
+
+	// Pre-initialize settings menu to avoid blank screen
+	m.loadSettingsMenu()
+	m.loadDirectorySettingsMenu()
+	m.loadGraphMenu()
 
 	return m, nil
 }
@@ -101,6 +137,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chatMenu.SetSize(w, h)
 		case screenChatSelectPapers, screenChatSelectAnyPaper:
 			m.chatPaperList.SetSize(w, h)
+		case screenSearchResults:
+			m.searchResultsList.SetSize(w, h)
+		case screenSearchMode:
+			m.searchModeMenu.SetSize(w, h)
+		case screenSimilarPaperSelect:
+			m.similarPaperList.SetSize(w, h)
+		case screenSimilarFactorsEdit:
+			m.similarFactorsList.SetSize(w, h-12)
+		case screenSettings:
+			m.settingsMenu.SetSize(w, h)
+		case screenDirectorySettings:
+			m.directorySettingsMenu.SetSize(w, h)
+		case screenGraphMenu:
+			m.graphMenu.SetSize(w, h)
+		case screenGraphDashboard:
+			// Dashboard uses custom rendering, no list to resize
+		case screenGraphSearch:
+			// Search uses custom rendering, no list to resize
+		case screenGraphMyPapers:
+			if m.graphMyPapers.Items() != nil {
+				m.graphMyPapers.SetSize(w, h)
+			}
 		}
 
 		return m, nil
@@ -108,10 +166,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ChatResponseMsg:
 		return m.handleChatResponse(msg)
 
+	case essenceExtractedMsg:
+		return m.handleEssenceExtracted(msg)
+
+	case searchResultMsg:
+		return m.handleSearchResult(msg)
+
+	case LoadingTickMsg:
+		if m.searchLoading {
+			m.searchLoadingFrame++
+			return m, tickEvery(100 * time.Millisecond)
+		}
+		return m, nil
+
 	case tea.KeyMsg:
+		// Handle similar factors editing separately
+		if m.screen == screenSimilarFactorsEdit {
+			return m.handleSimilarFactorsEdit(msg)
+		}
+
+		// Handle directory input/file browser separately
+		if m.screen == screenDirectorySettings && (m.directoryInputMode != "" || m.fileBrowserActive) {
+			return m.handleDirectoryInput(msg)
+		}
+
+		// Handle search input separately
+		if m.screen == screenSearch {
+			return m.handleSearchInput(msg)
+		}
+
 		// Handle chat input separately
 		if m.screen == screenChat {
 			return m.handleChatInput(msg)
+		}
+
+		// Handle graph search input separately
+		if m.screen == screenGraphSearch {
+			return m.handleGraphSearchInput(msg)
 		}
 
 		// Handle command palette toggle (Ctrl+P)
@@ -186,6 +277,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chatMenu, cmd = m.chatMenu.Update(msg)
 	case screenChatSelectPapers, screenChatSelectAnyPaper:
 		m.chatPaperList, cmd = m.chatPaperList.Update(msg)
+	case screenSearchResults:
+		m.searchResultsList, cmd = m.searchResultsList.Update(msg)
+	case screenSearchMode:
+		m.searchModeMenu, cmd = m.searchModeMenu.Update(msg)
+	case screenSimilarPaperSelect:
+		m.similarPaperList, cmd = m.similarPaperList.Update(msg)
+	case screenSimilarFactorsEdit:
+		// Handled separately in key handler
+		cmd = nil
+	case screenSettings:
+		m.settingsMenu, cmd = m.settingsMenu.Update(msg)
+	case screenDirectorySettings:
+		if m.directoryInputMode == "" {
+			m.directorySettingsMenu, cmd = m.directorySettingsMenu.Update(msg)
+		}
+	case screenGraphMenu:
+		m.graphMenu, cmd = m.graphMenu.Update(msg)
+	case screenGraphDashboard:
+		// Dashboard is read-only, no updates needed
+		cmd = nil
+	case screenGraphSearch:
+		// Search input handled separately in key handler
+		cmd = nil
+	case screenGraphMyPapers:
+		if m.graphMyPapers.Items() != nil {
+			m.graphMyPapers, cmd = m.graphMyPapers.Update(msg)
+		}
 	}
 
 	return m, cmd
@@ -194,6 +312,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // executeCommand executes a command from the command palette
 func (m Model) executeCommand(action string) (tea.Model, tea.Cmd) {
 	switch action {
+	case "search_papers":
+		m.navigateTo(screenSearch)
+		m.searchInput = ""
+		m.searchMaxResults = ""
+		m.searchInputMode = "query"
+		m.searchLoading = false
+		m.searchError = ""
 	case "view_library":
 		m.navigateTo(screenViewLibrary)
 		m.loadLibraryPapers()
@@ -215,7 +340,19 @@ func (m Model) executeCommand(action string) (tea.Model, tea.Cmd) {
 		m.screenHistory = []screen{} // Clear history
 	case "quit":
 		return m, tea.Quit
-	case "settings", "clear_cache", "cache_stats", "check_deps":
+	case "graph_explorer":
+		m.navigateTo(screenGraphMenu)
+		if m.width > 0 && m.height > 0 {
+			m.graphMenu.SetSize(m.width-4, m.height-8)
+		}
+	case "settings":
+		m.navigateTo(screenSettings)
+		m.loadSettingsMenu()
+		// Ensure menu is sized if we have dimensions
+		if m.width > 0 && m.height > 0 {
+			m.settingsMenu.SetSize(m.width-4, m.height-8)
+		}
+	case "clear_cache", "cache_stats", "check_deps":
 		// These will be implemented as external commands
 		m.processingMsg = action
 		return m, tea.Quit
@@ -225,6 +362,9 @@ func (m Model) executeCommand(action string) (tea.Model, tea.Cmd) {
 
 // Run starts the TUI application
 func Run(configPath string) error {
+	// Show animated splash screen
+	showSplashScreen(configPath)
+
 	m, err := InitialModel(configPath)
 	if err != nil {
 		return err

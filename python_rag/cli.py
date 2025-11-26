@@ -84,24 +84,36 @@ class RAGChatCLI:
 
         logger.info("✅ RAG system ready!\n")
 
-    def index_paper(self, latex_path: str, force: bool = False):
-        """Index a paper from LaTeX file"""
-        latex_path = Path(latex_path)
+    def index_paper(self, file_path: str, force: bool = False):
+        """Index a paper from LaTeX or PDF file"""
+        file_path = Path(file_path)
 
-        if not latex_path.exists():
-            logger.error(f"File not found: {latex_path}")
+        if not file_path.exists():
+            logger.error(f"File not found: {file_path}")
             return
 
-        num_chunks = self.indexer.index_paper_from_latex_file(
-            str(latex_path),
-            force_reindex=force
-        )
+        # Handle PDF files
+        if file_path.suffix.lower() == '.pdf':
+            num_chunks = self.indexer.index_paper_from_pdf(
+                str(file_path),
+                force_reindex=force
+            )
+        # Handle LaTeX files
+        elif file_path.suffix.lower() == '.tex':
+            num_chunks = self.indexer.index_paper_from_latex_file(
+                str(file_path),
+                force_reindex=force
+            )
+        else:
+            logger.error(f"Unsupported file type: {file_path.suffix}")
+            logger.error("Supported types: .pdf, .tex")
+            return
 
-        print(f"\n✅ Indexed: {latex_path.stem} ({num_chunks} chunks)\n")
+        print(f"\n✅ Indexed: {file_path.stem} ({num_chunks} chunks)\n")
 
-    def index_directory(self, directory: str, force: bool = False):
-        """Index all LaTeX files in a directory"""
-        results = self.indexer.index_directory(directory, force_reindex=force)
+    def index_directory(self, directory: str, pattern: str = "*.pdf", force: bool = False):
+        """Index all PDF or LaTeX files in a directory"""
+        results = self.indexer.index_directory(directory, pattern=pattern, force_reindex=force)
 
         print(f"\n✅ Indexed {len(results)} papers:\n")
         for paper, chunks in results.items():
@@ -191,8 +203,9 @@ def main():
 
     # Index command
     index_parser = subparsers.add_parser('index', help='Index papers')
-    index_parser.add_argument('path', help='LaTeX file or directory to index')
+    index_parser.add_argument('path', help='PDF/LaTeX file or directory to index')
     index_parser.add_argument('--force', action='store_true', help='Force reindexing')
+    index_parser.add_argument('--pattern', default='*.pdf', help='File pattern for directory indexing (default: *.pdf)')
 
     # List command
     subparsers.add_parser('list', help='List indexed papers')
@@ -246,7 +259,7 @@ def main():
             if path.is_file():
                 cli.index_paper(str(path), force=args.force)
             elif path.is_dir():
-                cli.index_directory(str(path), force=args.force)
+                cli.index_directory(str(path), pattern=args.pattern, force=args.force)
             else:
                 logger.error(f"Path not found: {path}")
                 sys.exit(1)

@@ -35,6 +35,18 @@ func (m Model) getHelp() string {
 		return "↑/↓: Navigate • Enter: Process Paper • ESC: Back • Q: Quit"
 	case screenSelectMultiplePapers:
 		return "↑/↓: Navigate • Space: Toggle Selection • Enter: Process Selected • ESC: Back • Q: Quit"
+	case screenSearch:
+		return "Type to search • Enter: Search • ESC: Back • Q: Quit"
+	case screenSearchResults:
+		return "↑/↓: Navigate • Enter: Download • ESC: Back • Q: Quit"
+	case screenGraphMenu:
+		return "↑/↓: Navigate • Enter: Select • ESC: Back • Q: Quit"
+	case screenGraphDashboard:
+		return "ESC: Back • Q: Quit"
+	case screenGraphSearch:
+		return "Type to search • Enter: Search • ESC: Back • Q: Quit"
+	case screenGraphMyPapers:
+		return "↑/↓: Navigate • Enter: View • ESC: Back • Q: Quit"
 	default:
 		return "↑/↓: Navigate • Enter: Select • ESC: Back • Q: Quit"
 	}

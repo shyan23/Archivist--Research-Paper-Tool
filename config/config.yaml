@@ -48,6 +48,52 @@ latex:
 
 hash_algorithm: "sha256"
 
+# Knowledge Graph settings
+graph:
+  enabled: true
+
+  # Neo4j connection
+  neo4j:
+    uri: "bolt://localhost:7687"
+    username: "neo4j"
+    password: "password"
+    database: "archivist"
+
+  # Background processing
+  async_building: true
+  max_graph_workers: 2        # Separate from paper workers
+
+  # Citation extraction
+  citation_extraction:
+    enabled: true
+    prioritize_in_text: true  # Focus on in-text citations
+    confidence_threshold: 0.7
+    importance_filter: ["high", "medium"]  # Skip "low" importance
+
+  # Search settings
+  search:
+    default_top_k: 10
+    vector_weight: 0.5         # 50% from vector similarity
+    graph_weight: 0.3          # 30% from graph traversal
+    keyword_weight: 0.2        # 20% from keyword matching
+    traversal_depth: 2         # Max hops for graph search
+
+  # Optimization for small scale (10-50 papers)
+  optimization:
+    max_papers_in_memory: 50
+    cache_graph_layout: true
+    precompute_similarities: true
+
+# Visualization settings
+visualization:
+  terminal:
+    enabled: true
+    max_nodes_displayed: 15
+    layout_algorithm: "force_directed"
+  web:
+    enabled: false  # Future enhancement
+    port: 8080
+
 # Redis-based caching for analysis results
 cache:
   enabled: true                   # ✅ Enable caching to speed up re-processing
@@ -57,6 +103,41 @@ cache:
     addr: "localhost:6379"        # Redis Stack server address (port 6379)
     password: ""                  # Redis password (empty for no auth)
     db: 0                         # Redis database number
+
+# Qdrant vector database (replaces FAISS)
+qdrant:
+  host: "localhost"
+  port: 6333                       # Default Qdrant port
+  grpc_port: 6334                  # gRPC port for faster ops
+  api_key: ""                      # Optional API key for Qdrant Cloud
+  collection_name: "archivist_papers"
+  use_grpc: true                   # Use gRPC for better performance
+
+  # Vector configuration
+  vector:
+    size: 768                      # Gemini text-embedding-004 dimensions
+    distance: "Cosine"             # Cosine, Euclid, or Dot
+    on_disk: false                 # Keep in memory for small scale (10-100 papers)
+
+  # Chunking strategy
+  chunking:
+    enabled: true
+    chunk_size: 512                # Tokens per chunk
+    chunk_overlap: 50              # Overlap between chunks
+    strategy: "semantic"           # "semantic" or "fixed"
+
+  # Embedding settings
+  embedding:
+    model: "text-embedding-004"    # Gemini embedding model
+    batch_size: 10                 # Batch embeddings for efficiency
+    cache_embeddings: true         # Cache in Redis
+
+  # Search configuration
+  search:
+    default_limit: 20
+    score_threshold: 0.7           # Minimum similarity score
+    with_payload: true             # Include metadata in results
+    with_vector: false             # Don't return vectors (save bandwidth)
 
 # Logging and monitoring
 logging:

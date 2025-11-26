@@ -21,6 +21,18 @@ const (
 	screenChatSelectPapers
 	screenChatSelectAnyPaper
 	screenChat
+	screenSearch
+	screenSearchResults
+	screenSearchMode           // Choose between manual and similar search
+	screenSimilarPaperSelect   // Select a paper for similar search
+	screenSimilarFactorsEdit   // Edit extracted factors
+	screenSimilarSearchResults // Results from similar search
+	screenSettings             // Settings menu
+	screenDirectorySettings    // Configure input/output directories
+	screenGraphMenu            // Knowledge graph explorer menu
+	screenGraphDashboard       // Graph statistics dashboard
+	screenGraphSearch          // Semantic graph search
+	screenGraphMyPapers        // User's papers in the graph
 )
 
 // Model represents the TUI application state
@@ -53,6 +65,47 @@ type Model struct {
 	chatSelectedPapers []string          // Papers selected for chat
 	chatLoading        bool              // Is response being generated
 	processingForChat  bool              // Is processing a paper for chat
+
+	// Search-related fields
+	searchInput        string            // Search query input
+	searchMaxResults   string            // Max results input (as string for display)
+	searchInputMode    string            // "query" or "count"
+	searchResultsList  list.Model        // List of search results
+	searchLoading      bool              // Is search in progress
+	searchLoadingFrame int               // For loading animation
+	searchError        string            // Error message from search
+
+	// Similar paper search fields
+	searchModeMenu          list.Model        // Menu for choosing search mode
+	similarPaperList        list.Model        // List of papers to choose from
+	selectedSimilarPaper    string            // Paper selected for similar search
+	similarFactors          []string          // Extracted factors (editable)
+	similarFactorsList      list.Model        // List for editing factors
+	similarFactorInput      string            // Input for adding new factor
+	similarExtractingEssence bool             // Is extracting essence
+	similarEssenceError     string            // Error during essence extraction
+
+	// Settings fields
+	settingsMenu            list.Model        // Settings menu
+	directorySettingsMenu   list.Model        // Directory settings menu
+	directoryInput          string            // Current input for directory path
+	directoryInputMode      string            // "input_dir" or "output_dir"
+	directoryChanged        bool              // Track if directories were changed
+
+	// File browser fields
+	fileBrowserActive       bool              // Is file browser active
+	currentBrowserPath      string            // Current directory in browser
+	browserItems            []string          // Items in current directory
+	browserSelectedIndex    int               // Selected item index in browser
+	browserShowHidden       bool              // Show hidden files/folders
+
+	// Graph explorer fields
+	graphMenu               list.Model        // Graph explorer menu
+	graphServiceURL         string            // Graph service URL
+	graphStats              map[string]interface{}  // Graph statistics
+	graphSearchQuery        string            // Semantic search query
+	graphSearchResults      list.Model        // Semantic search results
+	graphMyPapers           list.Model        // User's papers in graph
 }
 
 // Item represents a menu item

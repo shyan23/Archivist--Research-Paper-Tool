@@ -14,6 +14,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/list"
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -50,6 +53,34 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 		action := selectedItem.(item).action
 
 		switch action {
+		case "search_papers":
+			// Initialize search mode menu
+			modeItems := []list.Item{
+				item{
+					title:       "📝 Manual Search",
+					description: "Enter a search query manually",
+					action:      "manual",
+				},
+				item{
+					title:       "🔍 Find Similar Papers",
+					description: "Select a paper from your library to find similar papers",
+					action:      "similar",
+				},
+			}
+			delegate := createStyledDelegate()
+			m.searchModeMenu = list.New(modeItems, delegate, m.width, m.height)
+			m.searchModeMenu.Title = "Choose Search Mode"
+			m.searchModeMenu.SetShowStatusBar(false)
+			m.searchModeMenu.SetFilteringEnabled(false)
+			m.searchModeMenu.Styles.Title = titleStyle
+			if m.width > 0 && m.height > 0 {
+				m.searchModeMenu.SetSize(m.width-4, m.height-8)
+			}
+
+			m.navigateTo(screenSearchMode)
+			m.searchInput = ""
+			m.searchLoading = false
+			m.searchError = ""
 		case "view_library":
 			m.navigateTo(screenViewLibrary)
 			m.loadLibraryPapers()
@@ -70,7 +101,16 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 			m.processing = true
 			m.processingMsg = "batch"
 			return m, tea.Quit
+		case "settings":
+			m.navigateTo(screenSettings)
+			m.loadSettingsMenu()
+			// Ensure menu is sized if we have dimensions
+			if m.width > 0 && m.height > 0 {
+				m.settingsMenu.SetSize(m.width-4, m.height-8)
+			}
 		}
+	} else if m.screen == screenSettings || m.screen == screenDirectorySettings {
+		return m.handleSettingsEnter()
 	} else if m.screen == screenSelectMultiplePapers {
 		// Confirm selection of multiple papers
 		if len(m.multiSelectIndexes) == 0 {
@@ -137,6 +177,25 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 			m.processingMsg = "process_for_chat"
 			return m, tea.Quit
 		}
+	} else if m.screen == screenSearchResults {
+		// Handle search result selection (download paper)
+		return m.handleSearchResultSelection()
+	} else if m.screen == screenSearchMode {
+		// Handle search mode selection
+		return m.handleSearchModeSelection()
+	} else if m.screen == screenSimilarPaperSelect {
+		// Handle paper selection for similar search
+		return m.handleSimilarPaperSelection()
+	} else if m.screen == screenSimilarFactorsEdit {
+		// Don't handle enter here - handled separately in Update
+		return m, nil
+	} else if m.screen == screenGraphMenu {
+		// Handle graph menu selection
+		selectedItem := m.graphMenu.SelectedItem()
+		if selectedItem != nil {
+			action := selectedItem.(item).action
+			m.handleGraphMenuAction(action)
+		}
 	}
 
 	return m, nil
@@ -166,8 +225,24 @@ func handleOpenPDF(pdfPath string) error {
 
 	ui.PrintSuccess("PDF opened in default viewer")
 	fmt.Println()
-	ui.PrintInfo("Press Enter to return to main menu...")
-	fmt.Scanln()
+	ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
+
+	// Wait for user input with timeout
+	done := make(chan bool, 1)
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+		done <- true
+	}()
+
+	// Wait for Enter or timeout
+	select {
+	case <-done:
+		// User pressed Enter
+	case <-time.After(3 * time.Second):
+		// Timeout after 3 seconds
+		fmt.Println("\nReturning to main menu...")
+	}
 
 	// Restart TUI
 	return Run("config/config.yaml")
@@ -225,17 +300,32 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 	fmt.Println()
 	ui.PrintStage("Processing Paper", filepath.Base(paperPath))
 	ctx := context.Background()
-	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false, enableRAG); err != nil {
+	enableGraphBuilding := config.Graph.Enabled && ui.PromptEnableGraphBuilding()
+	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false, enableRAG, enableGraphBuilding); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Processing encountered an error")
 		fmt.Println()
 		ui.PrintInfo("Error logged to .metadata/processing.log")
 		fmt.Println()
-		ui.PrintInfo("Press Enter to return to main menu...")
+		ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-		// Wait for user input
-		fmt.Scanln()
+		// Wait for user input with timeout
+		done := make(chan bool, 1)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
+			reader.ReadString('\n')
+			done <- true
+		}()
+
+		// Wait for Enter or timeout
+		select {
+		case <-done:
+			// User pressed Enter
+		case <-time.After(3 * time.Second):
+			// Timeout after 3 seconds
+			fmt.Println("\nReturning to main menu...")
+		}
 
 		// Return to TUI
 		return Run("config/config.yaml")
@@ -245,11 +335,24 @@ func handleSinglePaperProcessing(paperPath string, config *app.Config) error {
 	fmt.Println()
 	ui.PrintSuccess("Processing complete!")
 	fmt.Println()
-	ui.PrintInfo("Press Enter to return to main menu...")
+	ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-	// Wait for user to press Enter (use bufio for more reliable input after progress bar)
-	reader := bufio.NewReader(os.Stdin)
-	reader.ReadString('\n')
+	// Wait for user input with timeout
+	done := make(chan bool, 1)
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+		done <- true
+	}()
+
+	// Wait for Enter or timeout
+	select {
+	case <-done:
+		// User pressed Enter
+	case <-time.After(3 * time.Second):
+		// Timeout after 3 seconds
+		fmt.Println("\nReturning to main menu...")
+	}
 
 	// Return to TUI
 	return Run("config/config.yaml")
@@ -322,18 +425,33 @@ func handleBatchProcessing(config *app.Config) error {
 	ctx := context.Background()
 	// Ask if user wants to enable RAG indexing for chat
 	enableRAG := ui.PromptEnableRAG()
+	enableGraphBuilding := config.Graph.Enabled && ui.PromptEnableGraphBuilding()
 
-	if err := worker.ProcessBatch(ctx, files, config, false, enableRAG); err != nil {
+	if err := worker.ProcessBatch(ctx, files, config, false, enableRAG, enableGraphBuilding); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Batch processing encountered an error")
 		fmt.Println()
 		ui.PrintInfo("Error logged to .metadata/processing.log")
 		fmt.Println()
-		ui.PrintInfo("Press Enter to return to main menu...")
+		ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-		// Wait for user input
-		fmt.Scanln()
+		// Wait for user input with timeout
+		done := make(chan bool, 1)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
+			reader.ReadString('\n')
+			done <- true
+		}()
+
+		// Wait for Enter or timeout
+		select {
+		case <-done:
+			// User pressed Enter
+		case <-time.After(3 * time.Second):
+			// Timeout after 3 seconds
+			fmt.Println("\nReturning to main menu...")
+		}
 
 		// Return to TUI
 		return Run("config/config.yaml")
@@ -343,11 +461,24 @@ func handleBatchProcessing(config *app.Config) error {
 	fmt.Println()
 	ui.PrintSuccess("Batch processing complete!")
 	fmt.Println()
-	ui.PrintInfo("Press Enter to return to main menu...")
+	ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-	// Wait for user to press Enter (use bufio for more reliable input after progress bar)
-	reader := bufio.NewReader(os.Stdin)
-	reader.ReadString('\n')
+	// Wait for user input with timeout
+	done := make(chan bool, 1)
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+		done <- true
+	}()
+
+	// Wait for Enter or timeout
+	select {
+	case <-done:
+		// User pressed Enter
+	case <-time.After(3 * time.Second):
+		// Timeout after 3 seconds
+		fmt.Println("\nReturning to main menu...")
+	}
 
 	// Return to TUI
 	return Run("config/config.yaml")
@@ -408,18 +539,33 @@ func handleMultiplePapersProcessing(paperPaths []string, config *app.Config) err
 	ctx := context.Background()
 	// Ask if user wants to enable RAG indexing for chat
 	enableRAG := ui.PromptEnableRAG()
+	enableGraphBuilding := config.Graph.Enabled && ui.PromptEnableGraphBuilding()
 
-	if err := worker.ProcessBatch(ctx, paperPaths, config, false, enableRAG); err != nil {
+	if err := worker.ProcessBatch(ctx, paperPaths, config, false, enableRAG, enableGraphBuilding); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Processing encountered an error")
 		fmt.Println()
 		ui.PrintInfo("Error logged to .metadata/processing.log")
 		fmt.Println()
-		ui.PrintInfo("Press Enter to return to main menu...")
+		ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-		// Wait for user input
-		fmt.Scanln()
+		// Wait for user input with timeout
+		done := make(chan bool, 1)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
+			reader.ReadString('\n')
+			done <- true
+		}()
+
+		// Wait for Enter or timeout
+		select {
+		case <-done:
+			// User pressed Enter
+		case <-time.After(3 * time.Second):
+			// Timeout after 3 seconds
+			fmt.Println("\nReturning to main menu...")
+		}
 
 		// Return to TUI
 		return Run("config/config.yaml")
@@ -429,11 +575,24 @@ func handleMultiplePapersProcessing(paperPaths []string, config *app.Config) err
 	fmt.Println()
 	ui.PrintSuccess("Processing complete!")
 	fmt.Println()
-	ui.PrintInfo("Press Enter to return to main menu...")
+	ui.PrintInfo("Press Enter to return to main menu (or wait 3 seconds)...")
 
-	// Wait for user to press Enter (use bufio for more reliable input after progress bar)
-	reader := bufio.NewReader(os.Stdin)
-	reader.ReadString('\n')
+	// Wait for user input with timeout
+	done := make(chan bool, 1)
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+		done <- true
+	}()
+
+	// Wait for Enter or timeout
+	select {
+	case <-done:
+		// User pressed Enter
+	case <-time.After(3 * time.Second):
+		// Timeout after 3 seconds
+		fmt.Println("\nReturning to main menu...")
+	}
 
 	// Return to TUI
 	return Run("config/config.yaml")
@@ -492,7 +651,8 @@ func handleProcessAndChat(paperPath string, config *app.Config) error {
 	fmt.Println()
 	ui.PrintStage("Processing Paper for Chat", filepath.Base(paperPath))
 	ctx := context.Background()
-	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false, true); err != nil {
+	enableGraphBuilding := config.Graph.Enabled && ui.PromptEnableGraphBuilding()
+	if err := worker.ProcessBatch(ctx, []string{paperPath}, config, false, true, enableGraphBuilding); err != nil {
 		ui.PrintError(fmt.Sprintf("Processing failed: %v", err))
 		fmt.Println()
 		ui.PrintWarning("Processing encountered an error")
@@ -546,4 +706,53 @@ func applyModeConfig(config *app.Config, mode ui.ProcessingMode) {
 
 	// Use fast model for methodology analysis (only one mode now)
 	config.Gemini.Agentic.Stages.MethodologyAnalysis.Model = "models/gemini-2.0-flash-exp"
+}
+
+// handleSearchInput handles text input for search query and count
+func (m Model) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		// If in count mode, go back to query mode
+		if m.searchInputMode == "count" {
+			m.searchInputMode = "query"
+			m.searchMaxResults = ""
+			return m, nil
+		}
+		// Otherwise go back to main menu
+		m.navigateBack()
+		return m, nil
+
+	case "enter":
+		// Call the search handler (handles mode switching)
+		return m.handleSearchEnter()
+
+	case "backspace":
+		// Delete last character from appropriate field
+		if m.searchInputMode == "count" {
+			if len(m.searchMaxResults) > 0 {
+				m.searchMaxResults = m.searchMaxResults[:len(m.searchMaxResults)-1]
+			}
+		} else {
+			if len(m.searchInput) > 0 {
+				m.searchInput = m.searchInput[:len(m.searchInput)-1]
+			}
+		}
+		return m, nil
+
+	default:
+		// Add character to appropriate field
+		if len(msg.Runes) == 1 {
+			if m.searchInputMode == "count" {
+				// Only allow digits for count
+				if msg.Runes[0] >= '0' && msg.Runes[0] <= '9' {
+					m.searchMaxResults += string(msg.Runes[0])
+				}
+			} else {
+				// Normal text input for query
+				m.searchInput += string(msg.Runes[0])
+			}
+		}
+	}
+
+	return m, nil
 }

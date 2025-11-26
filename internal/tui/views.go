@@ -49,6 +49,33 @@ func (m Model) View() string {
 			listView := m.multiPaperList.View()
 			content = listView + "\n" + helpStyle.Render("Tip: Use Space to toggle selection, Enter to confirm")
 		}
+	case screenSearch:
+		content = m.renderSearchScreen()
+	case screenSearchResults:
+		if len(m.searchResultsList.Items()) == 0 {
+			content = warningStyle.Render("\n⚠️  No search results found\n\n") +
+				helpStyle.Render("Press ESC to go back and try a different query")
+		} else {
+			content = m.searchResultsList.View()
+		}
+	case screenSearchMode:
+		content = m.renderSearchModeScreen()
+	case screenSimilarPaperSelect:
+		content = m.renderSimilarPaperSelectScreen()
+	case screenSimilarFactorsEdit:
+		content = m.renderSimilarFactorsEditScreen()
+	case screenSettings:
+		content = m.settingsMenu.View()
+	case screenDirectorySettings:
+		content = m.renderDirectorySettingsScreen()
+	case screenGraphMenu:
+		content = m.graphMenu.View()
+	case screenGraphDashboard:
+		content = m.renderGraphDashboard()
+	case screenGraphSearch:
+		content = m.renderGraphSearch()
+	case screenGraphMyPapers:
+		content = m.renderGraphMyPapers()
 	}
 
 	// Footer with help (add Ctrl+P hint)

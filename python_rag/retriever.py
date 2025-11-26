@@ -6,8 +6,12 @@ import logging
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 
-from .embeddings import EmbeddingProvider
-from .vector_store import VectorStore, SearchResult
+try:
+    from .embeddings import EmbeddingProvider
+    from .vector_store import VectorStore, SearchResult
+except ImportError:
+    from embeddings import EmbeddingProvider
+    from vector_store import VectorStore, SearchResult
 
 logger = logging.getLogger(__name__)
 

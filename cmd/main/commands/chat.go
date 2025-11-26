@@ -79,7 +79,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 	// Initialize components
 	fmt.Println("⚙️  Initializing chat engine...")
 
-	// Redis client
+	// Redis client for cache (not for vector storage)
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     config.Cache.Redis.Addr,
 		Password: config.Cache.Redis.Password,
@@ -89,7 +89,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 
 	// Test Redis connection
 	if err := redisClient.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("failed to connect to Redis: %w (make sure Redis Stack is running)", err)
+		return fmt.Errorf("failed to connect to Redis cache: %w (make sure Redis is running)", err)
 	}
 
 	// Initialize RAG components
@@ -99,9 +99,10 @@ func runChat(cmd *cobra.Command, args []string) error {
 	}
 	defer embedClient.Close()
 
-	vectorStore, err := rag.NewVectorStore(redisClient)
+	// Use FAISS vector store for RAG
+	vectorStore, err := rag.NewFAISSVectorStore(config.FAISS.IndexDir)
 	if err != nil {
-		return fmt.Errorf("failed to create vector store: %w", err)
+		return fmt.Errorf("failed to create FAISS vector store: %w", err)
 	}
 
 	retrievalConfig := rag.DefaultRetrievalConfig()
