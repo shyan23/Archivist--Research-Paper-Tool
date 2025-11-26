@@ -5,9 +5,6 @@
 **Transform AI/ML research papers into student-friendly LaTeX reports using Gemini AI**  
 *A comprehensive platform for academic paper analysis, knowledge graph building, and interactive Q&A*
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/shyan/Archivist)](https://golang.org/doc/devel/release.html)
-[![License](https://img.shields.io/github/license/shyan/Archivist)](LICENSE)
-[![Last Commit](https://img.shields.io/github/last-commit/shyan/Archivist)](https://github.com/shyan/Archivist/commits/master)
 
 </div>
 
