@@ -150,7 +150,7 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 		// Handle paper selection
 		selectedItem := m.singlePaperList.SelectedItem()
 		if selectedItem != nil {
-			m.selectedPaper = selectedItem.(item).description
+			m.selectedPaper = selectedItem.(item).action
 			// Start processing
 			return m, tea.Quit
 		}
