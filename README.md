@@ -13,7 +13,6 @@
 - ⚡ **Parallel Processing** - Process multiple papers concurrently with worker pools
 - 🔄 **Smart Deduplication** - MD5 hashing prevents reprocessing
 - 📝 **LaTeX Generation** - Professional LaTeX documents compiled to PDF
-- 🎯 **Multi-Stage Analysis** - Optional workflow with self-reflection and refinement
 - 📊 **Progress Tracking** - Real-time logging and status monitoring
 - ☸️ **Kubernetes Support** - Local deployment with autoscaling capabilities
 - 🔍 **Knowledge Graph** - Neo4j-based citation networks and semantic search
@@ -36,7 +35,6 @@ Archivist supports two deployment modes optimized for different use cases:
 ```
 
 **Specifications:**
-- **Setup Time**: ~5 minutes
 - **Resource Usage**: Minimal (2GB RAM, 2 CPU cores)
 - **Best For**: Personal use, development, quick processing
 
@@ -54,7 +52,6 @@ Archivist supports two deployment modes optimized for different use cases:
 ```
 
 **Specifications:**
-- **Setup Time**: ~10 minutes (includes service startup)
 - **Resource Requirements**: 4+ CPU cores, 8GB+ RAM
 - **Autoscaling**: 1-4 worker pods based on CPU/memory utilization
 - **Supported Platforms**: Minikube, Kind, Docker Desktop Kubernetes
@@ -1363,26 +1360,26 @@ For 50 papers with Knowledge Graph:
 
 | Component | Cost | Notes |
 |-----------|------|-------|
-| Gemini Analysis | $0.10 | Paper understanding |
-| Citation Extraction | $0.05 | LLM-based extraction |
-| Embeddings (500 chunks) | $0.05 | 10 chunks per paper |
+| Gemini Analysis |  Paper understanding |
+| Citation Extraction |  LLM-based extraction |
+| Embeddings (500 chunks) |  10 chunks per paper |
 | **Neo4j** | **FREE** | Community edition |
 | **Qdrant** | **FREE** | Self-hosted |
 | **Redis** | **FREE** | Self-hosted |
-| **Total** | **$0.20** | For 50 papers! |
+| **Total**  | For 50 papers! |
 
 ### Performance Metrics
 
 **Graph Operations:**
-- Node creation: <10ms
-- Relationship creation: <5ms
-- Citation query: <50ms
-- Similarity search: <100ms
+- Node creation: 
+- Relationship creation: 
+- Citation query: 
+- Similarity search: 
 
 **Search Performance:**
-- Hybrid search (50 papers): ~150ms
-- Pure vector search: ~50ms
-- Pure graph search: ~80ms
+- Hybrid search (50 papers): 
+- Pure vector search: 
+- Pure graph search: 
 
 ---
 
@@ -1453,8 +1450,6 @@ cd Archivist
 go mod tidy
 ./archivist check  # Verify dependencies
 
-# Run tests
-go test ./...
 ```
 
 ### Areas for Contribution
