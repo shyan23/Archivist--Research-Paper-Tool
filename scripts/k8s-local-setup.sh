@@ -76,22 +76,96 @@ print_success "Connected to Kubernetes cluster"
 
 # Get cluster info
 CLUSTER_NAME=$(kubectl config current-context)
-NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
-print_info "Cluster: ${CYAN}$CLUSTER_NAME${NC}"
-print_info "Node: ${CYAN}$NODE_NAME${NC}"
+FORCE_RECREATE_CLUSTER=false
 
 # Detect cluster type
 if [[ "$CLUSTER_NAME" == *"minikube"* ]]; then
     CLUSTER_TYPE="minikube"
+    NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
 elif [[ "$CLUSTER_NAME" == *"kind"* ]]; then
     CLUSTER_TYPE="kind"
+    # For Kind, select a WORKER node (not control-plane)
+    # Simple approach: get first node that's not control-plane
+    NODE_NAME=$(kubectl get nodes -o name | grep -v control-plane | head -1 | cut -d'/' -f2)
+    if [ -z "$NODE_NAME" ]; then
+        print_error "No worker nodes found in Kind cluster"
+        print_info "Please recreate cluster with: kind create cluster --config kind-config.yaml"
+        exit 1
+    fi
 elif [[ "$CLUSTER_NAME" == *"docker-desktop"* ]]; then
     CLUSTER_TYPE="docker-desktop"
+    NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
 else
     CLUSTER_TYPE="unknown"
+    NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
 fi
 
+print_info "Cluster: ${CYAN}$CLUSTER_NAME${NC}"
+print_info "Target node: ${CYAN}$NODE_NAME${NC}"
 print_info "Cluster type: ${CYAN}$CLUSTER_TYPE${NC}"
+
+# Validate Kind cluster configuration for best practices
+if [[ "$CLUSTER_TYPE" == "kind" ]]; then
+    print_header "Validating Cluster Configuration"
+
+    # Check if worker node has /data mount (best practice setup)
+    WORKER_HAS_DATA_MOUNT=$(docker exec "$NODE_NAME" ls /data 2>/dev/null && echo "yes" || echo "no")
+
+    # Check if control-plane is tainted
+    CONTROL_PLANE_TAINTED=$(kubectl get nodes tkb-control-plane -o jsonpath='{.spec.taints[?(@.key=="node-role.kubernetes.io/control-plane")].effect}' 2>/dev/null)
+
+    if [[ "$WORKER_HAS_DATA_MOUNT" == "no" ]]; then
+        print_warning "Worker node is missing /data mount (required for best practices)"
+        print_warning "Current cluster was not created with proper kind-config.yaml"
+        echo ""
+        print_info "For best practices, the cluster should be recreated with:"
+        print_info "  • Worker nodes with /data mount from host"
+        print_info "  • Control-plane tainted (no workloads)"
+        print_info "  • Storage pinned to worker nodes"
+        echo ""
+        read -p "Do you want to RECREATE the cluster now with best practices? [y/N]: " recreate
+        if [[ "$recreate" =~ ^[Yy]$ ]]; then
+            FORCE_RECREATE_CLUSTER=true
+
+            # Check if kind-config.yaml exists
+            if [ ! -f "kind-config.yaml" ]; then
+                print_error "kind-config.yaml not found!"
+                print_info "Please run from the Archivist root directory"
+                exit 1
+            fi
+
+            # Recreate cluster
+            print_info "Deleting current cluster..."
+            kind delete cluster --name tkb
+
+            print_info "Creating new cluster with best practices..."
+            kind create cluster --config kind-config.yaml
+
+            # Re-detect nodes after recreation (get first worker)
+            NODE_NAME=$(kubectl get nodes -o name | grep -v control-plane | head -1 | cut -d'/' -f2)
+
+            print_success "Cluster recreated with best practices!"
+            echo ""
+        else
+            print_warning "Continuing with current cluster setup (not ideal for production)"
+            print_info "Storage will be configured on control-plane (quick-fix mode)"
+            # Override node selection to use control-plane
+            NODE_NAME="tkb-control-plane"
+            echo ""
+        fi
+    else
+        print_success "Worker node has /data mount configured"
+    fi
+
+    if [[ -z "$CONTROL_PLANE_TAINTED" ]] && [[ "$FORCE_RECREATE_CLUSTER" == "false" ]]; then
+        print_warning "Control-plane is not tainted (workloads can schedule here)"
+        print_info "This works but violates Kubernetes best practices"
+    elif [[ -n "$CONTROL_PLANE_TAINTED" ]]; then
+        print_success "Control-plane is properly tainted (best practice)"
+    fi
+
+    echo ""
+fi
 
 # Check metrics server for autoscaling
 print_info "Checking metrics server (required for autoscaling)..."
@@ -122,21 +196,36 @@ print_success "Metrics server is ready"
 # Step 1: Setup data directories
 print_header "Setting Up Data Directories"
 
-DATA_DIR="/data/archivist"
-USE_HOME=false
+# For Kind, data is mounted at /data inside the worker container
+# For other clusters, we try /data first, then fall back to $HOME
+if [[ "$CLUSTER_TYPE" == "kind" ]]; then
+    HOST_DATA_DIR="$HOME/archivist-data"
 
-if [ -w "/data" ]; then
+    # Check if we're using best practice setup (worker with /data mount) or quick-fix (control-plane)
+    if [[ "$NODE_NAME" == *"worker"* ]]; then
+        PV_DATA_DIR="/data"  # Path inside Kind worker container (best practice)
+        print_success "Using best practice storage configuration"
+        print_info "Host: $HOST_DATA_DIR → Container: $PV_DATA_DIR (on worker)"
+    else
+        # Quick-fix mode: using control-plane (not ideal but works)
+        PV_DATA_DIR="$HOST_DATA_DIR"
+        print_warning "Using quick-fix storage configuration (control-plane)"
+        print_info "Storage path: $PV_DATA_DIR"
+    fi
+elif [ -w "/data" ]; then
+    HOST_DATA_DIR="/data/archivist"
+    PV_DATA_DIR="/data/archivist"
     print_success "Using /data/archivist for storage"
 else
+    HOST_DATA_DIR="$HOME/archivist-data"
+    PV_DATA_DIR="$HOME/archivist-data"
     print_warning "/data is not writable"
-    DATA_DIR="$HOME/archivist-data"
-    USE_HOME=true
-    print_info "Using $DATA_DIR instead"
+    print_info "Using $HOST_DATA_DIR instead"
 fi
 
-# Create directories
-mkdir -p "$DATA_DIR"/{neo4j,qdrant,redis,kafka,shared}/{lib,tex_files,reports}
-print_success "Data directories created"
+# Create directories on host
+mkdir -p "$HOST_DATA_DIR"/{neo4j,qdrant,redis,kafka,shared}/{lib,tex_files,reports}
+print_success "Data directories created at: $HOST_DATA_DIR"
 
 # Step 2: Update PVs with correct node name and paths
 print_header "Configuring Persistent Volumes"
@@ -147,18 +236,62 @@ PV_TEMP=$(mktemp)
 # Replace node name and paths in PV file
 sed "s/minikube/$NODE_NAME/g" "$PV_FILE" > "$PV_TEMP"
 
-if [ "$USE_HOME" = true ]; then
-    sed -i.bak "s|/data/archivist|$DATA_DIR|g" "$PV_TEMP"
-fi
+# Replace paths with correct location
+sed -i.bak "s|/data/archivist|$PV_DATA_DIR|g" "$PV_TEMP"
 
 print_success "PVs configured for node: $NODE_NAME"
+print_success "PV storage path: $PV_DATA_DIR"
 
-# Step 3: Create secrets
-print_header "Configuring Secrets"
+# Step 3: Create/Clean namespace
+print_header "Preparing Namespace"
 
-# Create namespace
+# Create namespace if it doesn't exist
 kubectl apply -f k8s/base/00-namespace.yaml
-print_success "Namespace created"
+print_success "Namespace ready"
+
+# Check if there are existing resources
+EXISTING_PODS=$(kubectl get pods -n $NAMESPACE --no-headers 2>/dev/null | wc -l)
+
+if [ "$EXISTING_PODS" -gt 0 ]; then
+    print_warning "Found existing deployment in namespace '$NAMESPACE'"
+    echo ""
+    kubectl get all -n $NAMESPACE
+    echo ""
+    print_info "🧹 Cleaning up ALL existing resources for fresh deployment..."
+    echo ""
+
+    # Step 1: Delete all application resources
+    print_info "[1/5] Deleting HPAs..."
+    kubectl delete hpa -n $NAMESPACE --all --timeout=30s 2>/dev/null || true
+
+    print_info "[2/5] Deleting deployments and statefulsets..."
+    kubectl delete deployments,statefulsets -n $NAMESPACE --all --timeout=60s 2>/dev/null || true
+
+    print_info "[3/5] Deleting services..."
+    kubectl delete services -n $NAMESPACE --all --timeout=30s 2>/dev/null || true
+
+    print_info "[4/5] Deleting PVCs and PVs..."
+    kubectl delete pvc -n $NAMESPACE --all --timeout=60s 2>/dev/null || true
+    # Delete PVs that belong to this deployment
+    kubectl delete pv neo4j-pv qdrant-pv redis-pv kafka-pv archivist-data-pv 2>/dev/null || true
+
+    print_info "[5/5] Waiting for all pods to terminate..."
+    kubectl wait --for=delete pod --all -n $NAMESPACE --timeout=90s 2>/dev/null || true
+
+    print_info "Deleting any remaining configmaps and secrets (except archivist-secrets)..."
+    kubectl delete configmap -n $NAMESPACE --all 2>/dev/null || true
+
+    # Short wait to ensure everything is cleaned up
+    sleep 3
+
+    print_success "✅ Complete cleanup finished - ready for fresh deployment"
+    echo ""
+else
+    print_info "No existing resources found - proceeding with fresh deployment"
+fi
+
+# Step 4: Configure secrets
+print_header "Configuring Secrets"
 
 # Check if secrets exist
 if kubectl get secret archivist-secrets -n $NAMESPACE &> /dev/null; then
@@ -192,12 +325,12 @@ if ! kubectl get secret archivist-secrets -n $NAMESPACE &> /dev/null; then
     print_success "Secrets created"
 fi
 
-# Step 4: Deploy ConfigMaps
+# Step 5: Deploy ConfigMaps
 print_header "Deploying Configuration"
 kubectl apply -f k8s/base/01-configmap.yaml
 print_success "ConfigMaps applied"
 
-# Step 5: Deploy Storage
+# Step 6: Deploy Storage
 print_header "Deploying Storage"
 kubectl apply -f "$PV_TEMP"
 kubectl apply -f k8s/base/03-pvcs.yaml
@@ -206,7 +339,7 @@ print_success "Persistent Volumes and Claims created"
 print_info "Waiting for PVCs to be bound (max 60s)..."
 kubectl wait --for=jsonpath='{.status.phase}'=Bound pvc --all -n $NAMESPACE --timeout=60s || print_warning "Some PVCs may need more time"
 
-# Step 6: Deploy StatefulSets
+# Step 7: Deploy StatefulSets
 print_header "Deploying Stateful Services"
 kubectl apply -f k8s/base/10-neo4j-statefulset.yaml
 print_success "Neo4j deployed"
@@ -219,7 +352,7 @@ kubectl wait --for=condition=ready pod -l app=neo4j -n $NAMESPACE --timeout=300s
 kubectl wait --for=condition=ready pod -l app=kafka -n $NAMESPACE --timeout=300s &
 wait
 
-# Step 7: Deploy Services
+# Step 8: Deploy Services
 print_header "Deploying Application Services"
 kubectl apply -f k8s/base/20-qdrant-deployment.yaml
 print_success "Qdrant deployed"
@@ -239,7 +372,7 @@ print_success "Graph service deployed"
 print_info "Waiting for deployments to be ready..."
 sleep 10
 
-# Step 8: Deploy Autoscaling
+# Step 9: Deploy Autoscaling
 print_header "Configuring Autoscaling"
 kubectl apply -f k8s/base/40-hpa.yaml
 print_success "Horizontal Pod Autoscalers configured"
@@ -259,14 +392,15 @@ echo -e "\n${CYAN}📈 Autoscaling Status:${NC}"
 kubectl get hpa -n $NAMESPACE
 
 echo -e "\n${CYAN}💾 Data Storage:${NC}"
-echo -e "  Papers/Reports: $DATA_DIR/shared/"
-echo -e "  Neo4j Data: $DATA_DIR/neo4j/"
-echo -e "  Qdrant Data: $DATA_DIR/qdrant/"
+echo -e "  Host Directory: $HOST_DATA_DIR/"
+echo -e "  Papers/Reports: $HOST_DATA_DIR/shared/"
+echo -e "  Neo4j Data: $HOST_DATA_DIR/neo4j/"
+echo -e "  Qdrant Data: $HOST_DATA_DIR/qdrant/"
 
 echo -e "\n${CYAN}🎯 Next Steps:${NC}"
 echo ""
 echo -e "1. ${YELLOW}Copy papers to process:${NC}"
-echo -e "   cp your_papers/*.pdf $DATA_DIR/shared/lib/"
+echo -e "   cp your_papers/*.pdf $HOST_DATA_DIR/shared/lib/"
 echo ""
 echo -e "2. ${YELLOW}Access services (port forwarding):${NC}"
 echo -e "   kubectl port-forward svc/neo4j-service 7474:7474 -n $NAMESPACE"
