@@ -5,6 +5,10 @@
 **Transform AI/ML research papers into student-friendly LaTeX reports using Gemini AI**
 *A comprehensive platform for academic paper analysis, knowledge graph building, and interactive Q&A*
 
+
+
+
+
 ## ✨ Features
 
 - 🎨 **Interactive Terminal UI** - Beautiful interface for browsing and processing papers
@@ -38,7 +42,11 @@ Archivist supports two deployment modes optimized for different use cases:
 - **Resource Usage**: Minimal (2GB RAM, 2 CPU cores)
 - **Best For**: Personal use, development, quick processing
 
+---
+## FOR NOW, DO NOT USE THE KUBERNETES PART,THINGS BUGGY
+---
 ### ☸️ Kubernetes Deployment (Advanced)
+
 
 **Local-first Kubernetes**: Designed for offline, personal machine deployment with intelligent autoscaling.
 
